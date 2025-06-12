@@ -1,0 +1,49 @@
+use std::fmt::Debug;
+
+use chrono::{DateTime, Utc};
+use serde::{Serialize, de::DeserializeOwned};
+use sqlx::{FromRow, postgres::PgRow};
+
+/// The `Entry` trait defines a common interface for database entities.
+///
+/// Types implementing this trait must support serialization, deserialization,
+/// SQL row mapping, and thread safety. The trait provides methods for accessing
+/// and modifying the entity's unique identifier, creation and update timestamps,
+/// as well as static methods for retrieving the table name and column names.
+///
+/// # Associated Types
+/// - `Id`: The type used for the entity's unique identifier.
+///
+/// # Required Methods
+/// - `id(&self) -> Self::Id`: Returns the entity's unique identifier.
+/// - `set_id(&mut self, id: Self::Id)`: Sets the entity's unique identifier.
+/// - `created_at(&self) -> Option<DateTime<Utc>>`: Returns the creation timestamp.
+/// - `set_created_at(&mut self, created_at: DateTime<Utc>)`: Sets the creation timestamp.
+/// - `updated_at(&self) -> Option<DateTime<Utc>>`: Returns the last update timestamp.
+/// - `set_updated_at(&mut self, updated_at: DateTime<Utc>)`: Sets the last update timestamp.
+/// - `table_name() -> &'static str`: Returns the database table name for the entity.
+/// - `columns() -> Vec<&'static str>`: Returns the list of column names for the entity.
+pub trait Entry:
+    for<'r> FromRow<'r, PgRow> + Send + Sync + Serialize + DeserializeOwned + std::fmt::Debug
+{
+    type Id: Send
+        + Sync
+        + Copy
+        + 'static
+        + sqlx::Type<sqlx::Postgres>
+        + sqlx::Encode<'static, sqlx::Postgres>
+        + Debug;
+
+    fn id(&self) -> Self::Id;
+    fn set_id(&mut self, id: Self::Id);
+
+    fn created_at(&self) -> Option<DateTime<Utc>>;
+    fn set_created_at(&mut self, created_at: DateTime<Utc>);
+
+    fn updated_at(&self) -> Option<DateTime<Utc>>;
+    fn set_updated_at(&mut self, updated_at: DateTime<Utc>);
+
+    fn table_name() -> &'static str;
+
+    fn columns() -> Vec<&'static str>;
+}

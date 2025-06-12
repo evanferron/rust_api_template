@@ -1,0 +1,44 @@
+[package]
+name = "v1"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+actix-web = "4.11.0"
+actix-rt = "2.10.0"
+tokio = { version = "1.45.1", features = ["full"] }
+config = "0.15.11"
+dotenv = "0.15.0"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+log = "0.4.27"
+env_logger = "0.11.8"
+chrono = { version = "0.4.41", features = ["serde"] }
+uuid = { version = "1.17.0", features = ["v4", "serde"] }
+sqlx = { version = "0.8.6", features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "uuid",
+    "chrono",
+    "json",
+] }
+anyhow = "1.0.98"
+thiserror = "2.0.12"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+tracing-actix-web = "0.7.18"
+actix-cors = "0.7.1"
+jsonwebtoken = "9.3.1"
+bcrypt = "0.17.0"
+validator = { version = "0.20.0", features = ["derive"] }
+utoipa = { version = "5.3.1", features = ["actix_extras", "uuid", "chrono"] }
+utoipa-swagger-ui = { version = "9.0.2", features = ["actix-web"] }
+futures = "0.3.31"
+async-trait = "0.1.80"
+
+[dev-dependencies]
+actix-http = "3.11.0"
+mockall = "0.13.1"
+
+[features]
+openapi = []
