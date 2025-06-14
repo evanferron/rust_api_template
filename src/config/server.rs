@@ -1,7 +1,7 @@
 use super::config::Config;
 use crate::api::swagger::ApiDoc;
 use crate::config::models::{Repositories, Services};
-use crate::core::middlewares;
+use crate::core::middlewares::logger::logger_middleware;
 use crate::modules::auth::auth_service::AuthService;
 use crate::modules::user::user_service::UserService;
 use crate::{api, db::repositories::user_repository::UserRepository};
@@ -74,10 +74,10 @@ impl Server {
 
             App::new()
                 .wrap(cors)
-                .wrap(middlewares::logging::Logger)
+                .wrap(logger_middleware())
                 .app_data(web::Data::new(pool.clone()))
                 .app_data(web::Data::new(config.clone()))
-                .app_data(web::Data::new(repositories.clone()))
+                .app_data(web::Data::new(Arc::clone(&repositories)))
                 .app_data(web::Data::new(services.clone()))
                 .configure(api::routes_config)
                 .service(

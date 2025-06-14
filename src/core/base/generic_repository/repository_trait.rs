@@ -1,4 +1,9 @@
-use crate::core::errors::errors::ApiError;
+use std::collections::HashMap;
+
+use crate::core::{
+    base::query_builder::{query_builder::QueryBuilderUtil, query_models::OrderDirection},
+    errors::errors::ApiError,
+};
 
 use super::entry_trait::Entry;
 use serde_json::Value;
@@ -7,212 +12,150 @@ use sqlx::{Pool, Postgres, QueryBuilder};
 pub type RepositoryResult<T> = Result<T, ApiError>;
 
 pub trait RepositoryTrait<T: Entry + Send + Sync + Unpin + 'static> {
+    /// Returns a reference to the Postgres connection pool.
     fn get_pool(&self) -> &Pool<Postgres>;
 
+    /// Creates a new QueryBuilderUtil instance for building queries.
+    fn query(&self) -> QueryBuilderUtil<T> {
+        QueryBuilderUtil::new()
+    }
+
+    /// Fetches all records of type T from the database.
     async fn find_all(&self) -> RepositoryResult<Vec<T>> {
-        let query = format!(
-            "SELECT {} FROM {}",
-            T::columns().join(", "),
-            T::table_name()
-        );
-
-        let items = sqlx::query_as::<_, T>(&query)
-            .fetch_all(self.get_pool())
-            .await
-            .map_err(ApiError::Database)?;
-
-        Ok(items)
+        self.query().fetch_all(self.get_pool()).await
     }
 
+    /// Finds a record by its primary key (id). Returns an Option<T>.
     async fn find_by_id(&self, id: T::Id) -> RepositoryResult<Option<T>> {
-        let mut query_builder = QueryBuilder::new("SELECT ");
-        query_builder.push(T::columns().join(", "));
-        query_builder.push(" FROM ");
-        query_builder.push(T::table_name());
-        query_builder.push(" WHERE id = ");
-        query_builder.push_bind(id);
-
-        let item = query_builder
-            .build_query_as::<T>()
+        self.query()
+            .where_eq(
+                "id",
+                serde_json::to_value(id).map_err(|e| ApiError::Serialization(e))?,
+            )?
             .fetch_optional(self.get_pool())
-            .await?;
-
-        Ok(item)
+            .await
     }
 
+    /// Finds a record by its primary key (id). Returns an error if not found.
     async fn find_by_id_required(&self, id: T::Id) -> RepositoryResult<T> {
-        self.find_by_id(id)
-            .await?
-            .ok_or_else(|| ApiError::NotFound(format!("{:?}", id)))
+        self.query()
+            .where_eq(
+                "id",
+                serde_json::to_value(id).map_err(|e| ApiError::Serialization(e))?,
+            )?
+            .fetch_one(self.get_pool())
+            .await
+            .map_err(|e| match e {
+                ApiError::NotFound(_) => ApiError::NotFound(format!("{:?}", id)),
+                _ => e,
+            })
     }
 
+    /// Finds records by a specific column and value.
     async fn find_by_column<V>(&self, column: &str, value: V) -> RepositoryResult<Vec<T>>
     where
-        V: Send + Sync + for<'q> sqlx::Encode<'q, Postgres> + sqlx::Type<Postgres>,
+        V: Send + Sync + serde::Serialize,
     {
-        // Validation basique du nom de colonne
-        if !T::columns().contains(&column) {
-            return Err(ApiError::InvalidColumn(column.to_string()));
-        }
+        let json_value = serde_json::to_value(value).map_err(|e| ApiError::Serialization(e))?;
 
-        let mut query_builder = QueryBuilder::new("SELECT ");
-        query_builder.push(T::columns().join(", "));
-        query_builder.push(" FROM ");
-        query_builder.push(T::table_name());
-        query_builder.push(" WHERE ");
-        query_builder.push(column);
-        query_builder.push(" = ");
-        query_builder.push_bind(value);
-
-        let items = query_builder
-            .build_query_as::<T>()
+        self.query()
+            .where_eq(column, json_value)?
             .fetch_all(self.get_pool())
             .await
-            .map_err(ApiError::Database)?;
-
-        Ok(items)
     }
 
+    /// Finds records matching a set of criteria (column, value pairs).
     async fn find_by_criteria(&self, criteria: &[(&str, Value)]) -> RepositoryResult<Vec<T>> {
         if criteria.is_empty() {
             return self.find_all().await;
         }
 
-        let mut query_builder = QueryBuilder::new("SELECT ");
-        query_builder.push(T::columns().join(", "));
-        query_builder.push(" FROM ");
-        query_builder.push(T::table_name());
-        query_builder.push(" WHERE ");
+        let mut query = self.query();
 
         for (i, (column, value)) in criteria.iter().enumerate() {
-            if !T::columns().contains(column) {
-                return Err(ApiError::InvalidColumn(column.to_string()));
+            query = query.where_eq(column, value.clone())?;
+            if i < criteria.len() - 1 {
+                query = query.and();
             }
-
-            if i > 0 {
-                query_builder.push(" AND ");
-            }
-
-            query_builder.push(*column);
-            query_builder.push(" = ");
-            query_builder.push_bind(value.clone());
         }
 
-        let items = query_builder
-            .build_query_as::<T>()
+        query.fetch_all(self.get_pool()).await
+    }
+
+    /// Counts the total number of records of type T.
+    async fn count(&self) -> RepositoryResult<i64> {
+        self.query().count(self.get_pool()).await
+    }
+
+    /// Fetches a paginated list of records, ordered by id ascending.
+    async fn paginate(&self, page: u32, page_size: u32) -> RepositoryResult<Vec<T>> {
+        self.query()
+            .order_by("id", OrderDirection::Asc)?
+            .paginate(page, page_size)
             .fetch_all(self.get_pool())
             .await
-            .map_err(ApiError::Database)?;
-
-        Ok(items)
     }
 
-    async fn count(&self) -> RepositoryResult<i64> {
-        let query = format!("SELECT COUNT(*) FROM {}", T::table_name());
-
-        let count: (i64,) = sqlx::query_as(&query).fetch_one(self.get_pool()).await?;
-
-        Ok(count.0)
-    }
-
-    async fn paginate(&self, page: u32, page_size: u32) -> RepositoryResult<Vec<T>> {
-        let offset = (page.saturating_sub(1)) * page_size;
-
-        let query = format!(
-            "SELECT {} FROM {} ORDER BY id LIMIT {} OFFSET {}",
-            T::columns().join(", "),
-            T::table_name(),
-            page_size,
-            offset
-        );
-
-        let items = sqlx::query_as::<_, T>(&query)
-            .fetch_all(self.get_pool())
-            .await?;
-
-        Ok(items)
-    }
-
+    /// Creates a new record in the database and returns it.
     async fn create(&self, mut entry: T) -> RepositoryResult<T> {
         use chrono::Utc;
 
-        let columns = T::columns();
+        let columns = T::insertable_columns();
         let now = Utc::now();
         entry.set_created_at(now);
         entry.set_updated_at(now);
 
-        let mut query_builder = QueryBuilder::new("INSERT INTO ");
-        query_builder.push(T::table_name());
-        query_builder.push(" (");
-        query_builder.push(columns.join(", "));
-        query_builder.push(") VALUES (");
+        let entry_json = serde_json::to_value(&entry).map_err(|e| ApiError::Serialization(e))?;
 
-        let entry_json = serde_json::to_value(&entry)?;
-
-        for (i, col) in columns.iter().enumerate() {
-            if i > 0 {
-                query_builder.push(", ");
-            }
+        let mut insert_data = HashMap::new();
+        for col in &columns {
             let value = entry_json.get(*col).cloned().unwrap_or(Value::Null);
-            query_builder.push_bind(value);
+            insert_data.insert(col.to_string(), value);
         }
 
-        query_builder.push(") RETURNING *");
-
-        let item = query_builder
-            .build_query_as::<T>()
-            .fetch_one(self.get_pool())
-            .await?;
-
-        Ok(item)
+        self.query()
+            .values(insert_data)?
+            .insert_returning(self.get_pool())
+            .await
     }
 
+    /// Creates multiple records in the database and returns them.
     async fn create_many(&self, entries: Vec<T>) -> RepositoryResult<Vec<T>> {
         if entries.is_empty() {
             return Ok(vec![]);
         }
 
         use chrono::Utc;
-        let columns = T::columns();
+        let columns = T::insertable_columns();
         let now = Utc::now();
+        let mut results = Vec::new();
 
-        let mut query_builder = QueryBuilder::new("INSERT INTO ");
-        query_builder.push(T::table_name());
-        query_builder.push(" (");
-        query_builder.push(columns.join(", "));
-        query_builder.push(") VALUES ");
-
-        for (entry_idx, mut entry) in entries.into_iter().enumerate() {
+        for mut entry in entries {
             entry.set_created_at(now);
             entry.set_updated_at(now);
 
-            if entry_idx > 0 {
-                query_builder.push(", ");
-            }
+            let entry_json =
+                serde_json::to_value(&entry).map_err(|e| ApiError::Serialization(e))?;
 
-            query_builder.push("(");
-            let entry_json = serde_json::to_value(&entry)?;
-
-            for (i, col) in columns.iter().enumerate() {
-                if i > 0 {
-                    query_builder.push(", ");
-                }
+            let mut insert_data = HashMap::new();
+            for col in &columns {
                 let value = entry_json.get(*col).cloned().unwrap_or(Value::Null);
-                query_builder.push_bind(value);
+                insert_data.insert(col.to_string(), value);
             }
-            query_builder.push(")");
+
+            let created_entry = self
+                .query()
+                .values(insert_data)?
+                .insert_returning(self.get_pool())
+                .await?;
+
+            results.push(created_entry);
         }
 
-        query_builder.push(" RETURNING *");
-
-        let items = query_builder
-            .build_query_as::<T>()
-            .fetch_all(self.get_pool())
-            .await?;
-
-        Ok(items)
+        Ok(results)
     }
 
+    /// Updates a record by its id with the provided entry data.
     async fn update(&self, id: T::Id, mut entry: T) -> RepositoryResult<T> {
         use chrono::Utc;
 
@@ -220,46 +163,39 @@ pub trait RepositoryTrait<T: Entry + Send + Sync + Unpin + 'static> {
         let now = Utc::now();
         entry.set_updated_at(now);
 
-        let mut query_builder = QueryBuilder::new("UPDATE ");
-        query_builder.push(T::table_name());
-        query_builder.push(" SET ");
+        let entry_json = serde_json::to_value(&entry).map_err(|e| ApiError::Serialization(e))?;
 
-        let entry_json = serde_json::to_value(&entry)?;
-        let mut first = true;
-
+        let mut update_data = HashMap::new();
         for col in &columns {
             if *col == "id" || *col == "created_at" {
                 continue;
             }
-            if !first {
-                query_builder.push(", ");
-            }
-            first = false;
-
-            query_builder.push(*col);
-            query_builder.push(" = ");
-
             let value = entry_json.get(*col).cloned().unwrap_or(Value::Null);
-            query_builder.push_bind(value);
+            update_data.insert(col.to_string(), value);
         }
 
-        query_builder.push(" WHERE id = ");
-        query_builder.push_bind(id);
-        query_builder.push(" RETURNING *");
+        let updated_entries = self
+            .query()
+            .where_eq(
+                "id",
+                serde_json::to_value(id).map_err(|e| ApiError::Serialization(e))?,
+            )?
+            .set_multiple(update_data)?
+            .update_returning(self.get_pool())
+            .await?;
 
-        let item = query_builder
-            .build_query_as::<T>()
-            .fetch_one(self.get_pool())
-            .await
-            .map_err(|e| match e {
-                sqlx::Error::RowNotFound => ApiError::NotFound(format!("{:?}", id)),
-                _ => ApiError::Database(e),
-            })?;
-
-        Ok(item)
+        updated_entries
+            .into_iter()
+            .next()
+            .ok_or_else(|| ApiError::NotFound(format!("No record found with id: {:?}", id)))
     }
 
-    async fn update_partial(&self, id: T::Id, updates: &[(&str, Value)]) -> RepositoryResult<T> {
+    /// Partially updates a record by its id with the provided updates.
+    async fn update_partial(
+        &self,
+        id: T::Id,
+        updates: Vec<(String, Value)>,
+    ) -> RepositoryResult<T> {
         if updates.is_empty() {
             return self.find_by_id_required(id).await;
         }
@@ -267,88 +203,230 @@ pub trait RepositoryTrait<T: Entry + Send + Sync + Unpin + 'static> {
         use chrono::Utc;
         let now = Utc::now();
 
-        let mut query_builder = QueryBuilder::new("UPDATE ");
-        query_builder.push(T::table_name());
-        query_builder.push(" SET ");
+        let mut update_data = HashMap::new();
 
-        for (i, (column, value)) in updates.iter().enumerate() {
-            if !T::columns().contains(column) {
-                return Err(ApiError::InvalidColumn(column.to_string()));
+        for (column, value) in updates.into_iter() {
+            if !T::columns().contains(&column.as_str()) {
+                return Err(ApiError::InvalidColumn(column.clone()));
             }
 
-            if *column == "id" || *column == "created_at" {
+            if column == "id" || column == "created_at" {
                 continue;
             }
 
-            if i > 0 {
-                query_builder.push(", ");
-            }
-
-            query_builder.push(*column);
-            query_builder.push(" = ");
-            query_builder.push_bind(value.clone());
+            update_data.insert(column, value);
         }
 
-        // Toujours mettre à jour updated_at
-        query_builder.push(", updated_at = ");
-        query_builder.push_bind(now);
+        update_data.insert(
+            "updated_at".to_string(),
+            serde_json::to_value(now).map_err(|e| ApiError::Serialization(e))?,
+        );
 
-        query_builder.push(" WHERE id = ");
-        query_builder.push_bind(id);
-        query_builder.push(" RETURNING *");
+        let updated_entries = self
+            .query()
+            .where_eq(
+                "id",
+                serde_json::to_value(id.clone()).map_err(|e| ApiError::Serialization(e))?,
+            )?
+            .set_multiple(update_data)?
+            .update_returning(self.get_pool())
+            .await?;
 
-        let item = query_builder
-            .build_query_as::<T>()
-            .fetch_one(self.get_pool())
-            .await
-            .map_err(|e| match e {
-                sqlx::Error::RowNotFound => ApiError::NotFound(format!("{:?}", id)),
-                _ => ApiError::Database(e),
-            })?;
-
-        Ok(item)
+        updated_entries
+            .into_iter()
+            .next()
+            .ok_or_else(|| ApiError::NotFound(format!("No record found with id: {:?}", id)))
     }
 
+    /// Deletes a record by its id. Returns true if a record was deleted.
     async fn delete(&self, id: T::Id) -> RepositoryResult<bool> {
-        let mut query_builder = QueryBuilder::new("DELETE FROM ");
-        query_builder.push(T::table_name());
-        query_builder.push(" WHERE id = ");
-        query_builder.push_bind(id);
+        let rows_affected = self
+            .query()
+            .where_eq(
+                "id",
+                serde_json::to_value(id).map_err(|e| ApiError::Serialization(e))?,
+            )?
+            .delete(self.get_pool())
+            .await?;
 
-        let result = query_builder.build().execute(self.get_pool()).await?;
-        Ok(result.rows_affected() > 0)
+        Ok(rows_affected > 0)
     }
 
+    /// Deletes multiple records by their ids. Returns the number of records deleted.
     async fn delete_many(&self, ids: &[T::Id]) -> RepositoryResult<u64> {
         if ids.is_empty() {
             return Ok(0);
         }
 
-        let mut query_builder = QueryBuilder::new("DELETE FROM ");
-        query_builder.push(T::table_name());
-        query_builder.push(" WHERE id = ANY(ARRAY[");
-        for (i, id) in ids.iter().enumerate() {
-            if i > 0 {
-                query_builder.push(", ");
-            }
-            query_builder.push_bind(id.clone());
-        }
-        query_builder.push("])");
+        let id_values: Result<Vec<Value>, _> =
+            ids.iter().map(|id| serde_json::to_value(id)).collect();
+        let id_values = id_values.map_err(|e| ApiError::Serialization(e))?;
 
-        let result = query_builder.build().execute(self.get_pool()).await?;
-        Ok(result.rows_affected())
+        self.query()
+            .where_in("id", id_values)?
+            .delete(self.get_pool())
+            .await
     }
 
+    /// Checks if a record exists by its id.
     async fn exists(&self, id: T::Id) -> RepositoryResult<bool> {
-        let mut query_builder = QueryBuilder::new("SELECT 1 FROM ");
-        query_builder
-            .push(T::table_name())
-            .push(" WHERE id = ")
-            .push_bind(id)
-            .push(" LIMIT 1");
+        let count = self
+            .query()
+            .where_eq(
+                "id",
+                serde_json::to_value(id).map_err(|e| ApiError::Serialization(e))?,
+            )?
+            .limit(1)
+            .count(self.get_pool())
+            .await?;
 
-        let exists = query_builder.build().execute(self.get_pool()).await?;
+        Ok(count > 0)
+    }
 
-        Ok(exists.rows_affected() > 0)
+    /// Fetches records using a custom QueryBuilderUtil instance.
+    async fn find_with_query(&self, query: QueryBuilderUtil<T>) -> RepositoryResult<Vec<T>> {
+        query.fetch_all(self.get_pool()).await
+    }
+
+    /// Counts records using a custom QueryBuilderUtil instance.
+    async fn count_with_query(&self, query: QueryBuilderUtil<T>) -> RepositoryResult<i64> {
+        query.count(self.get_pool()).await
+    }
+
+    /// Fetches an optional record using a custom QueryBuilderUtil instance.
+    async fn find_one_with_query(&self, query: QueryBuilderUtil<T>) -> RepositoryResult<Option<T>> {
+        query.fetch_optional(self.get_pool()).await
+    }
+
+    /// Fetches a required record using a custom QueryBuilderUtil instance.
+    async fn find_one_required_with_query(
+        &self,
+        query: QueryBuilderUtil<T>,
+    ) -> RepositoryResult<T> {
+        query.fetch_one(self.get_pool()).await
+    }
+
+    /// Deletes records using a custom QueryBuilderUtil instance.
+    async fn delete_by_query(&self, query: QueryBuilderUtil<T>) -> RepositoryResult<u64> {
+        query.delete(self.get_pool()).await
+    }
+
+    /// Finds records with advanced options: conditions, ordering, limit, and offset.
+    async fn find_advanced(
+        &self,
+        conditions: &[(&str, Value)],
+        order_by: Option<(&str, OrderDirection)>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> RepositoryResult<Vec<T>> {
+        let mut query = self.query();
+
+        for (i, (column, value)) in conditions.iter().enumerate() {
+            query = query.where_eq(column, value.clone())?;
+            if i < conditions.len() - 1 {
+                query = query.and();
+            }
+        }
+
+        if let Some((column, direction)) = order_by {
+            query = query.order_by(column, direction)?;
+        }
+
+        if let Some(l) = limit {
+            query = query.limit(l);
+        }
+
+        if let Some(o) = offset {
+            query = query.offset(o);
+        }
+
+        query.fetch_all(self.get_pool()).await
+    }
+
+    /// Searches for records where a column matches a pattern (LIKE/ILIKE).
+    async fn search_by_pattern(
+        &self,
+        column: &str,
+        pattern: &str,
+        case_sensitive: bool,
+        limit: Option<u32>,
+    ) -> RepositoryResult<Vec<T>> {
+        let search_pattern = format!("%{}%", pattern);
+        let mut query = self.query();
+
+        query = if case_sensitive {
+            query.where_like(column, search_pattern)?
+        } else {
+            query.where_ilike(column, search_pattern)?
+        };
+
+        if let Some(l) = limit {
+            query = query.limit(l);
+        }
+
+        query.fetch_all(self.get_pool()).await
+    }
+
+    /// Finds records where a column value is within a specified range.
+    async fn find_by_range<V>(&self, column: &str, start: V, end: V) -> RepositoryResult<Vec<T>>
+    where
+        V: serde::Serialize,
+    {
+        let start_value = serde_json::to_value(start).map_err(|e| ApiError::Serialization(e))?;
+        let end_value = serde_json::to_value(end).map_err(|e| ApiError::Serialization(e))?;
+
+        self.query()
+            .where_between(column, start_value, end_value)?
+            .fetch_all(self.get_pool())
+            .await
+    }
+
+    /// Finds records where a column value is in a list of values.
+    async fn find_by_values<V>(&self, column: &str, values: Vec<V>) -> RepositoryResult<Vec<T>>
+    where
+        V: serde::Serialize,
+    {
+        if values.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let json_values: Result<Vec<Value>, _> = values
+            .into_iter()
+            .map(|v| serde_json::to_value(v))
+            .collect();
+        let json_values = json_values.map_err(|e| ApiError::Serialization(e))?;
+
+        self.query()
+            .where_in(column, json_values)?
+            .fetch_all(self.get_pool())
+            .await
+    }
+
+    /// Binds a serde_json::Value to a SQLx QueryBuilder.
+    fn bind_value(&self, query_builder: &mut QueryBuilder<'_, Postgres>, value: Value) {
+        match value {
+            Value::String(s) => query_builder.push_bind(s),
+            _ => query_builder.push_bind(value),
+        };
+    }
+
+    /// Fetches a paginated and optionally sorted list of records.
+    async fn paginate_sorted(
+        &self,
+        page: u32,
+        page_size: u32,
+        sort_column: Option<&str>,
+        sort_direction: Option<OrderDirection>,
+    ) -> RepositoryResult<Vec<T>> {
+        let mut query = self.query().paginate(page, page_size);
+
+        if let Some(column) = sort_column {
+            let direction = sort_direction.unwrap_or(OrderDirection::Asc);
+            query = query.order_by(column, direction)?;
+        } else {
+            query = query.order_by("id", OrderDirection::Asc)?;
+        }
+
+        query.fetch_all(self.get_pool()).await
     }
 }

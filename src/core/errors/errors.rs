@@ -27,11 +27,14 @@ pub enum ApiError {
     #[error("Erreur de base de données: {0}")]
     Database(SqlxError),
 
-    #[error("Database error: {0}")]
+    #[error("Erreur de serialisation: {0}")]
     Serialization(#[from] serde_json::Error),
 
     #[error("Invalid column name: {0}")]
     InvalidColumn(String),
+
+    #[error("Invalid query: {0}")]
+    InvalidQuery(String),
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -109,6 +112,13 @@ impl ResponseError for ApiError {
                 let error_response = ErrorResponse {
                     status: 400,
                     message: format!("Nom de colonne invalide: {}", column),
+                };
+                HttpResponse::BadRequest().json(error_response)
+            }
+            ApiError::InvalidQuery(query) => {
+                let error_response = ErrorResponse {
+                    status: 400,
+                    message: format!("Requête invalide: {}", query),
                 };
                 HttpResponse::BadRequest().json(error_response)
             }

@@ -30,40 +30,6 @@ impl UserRepository {
         Ok(users)
     }
 
-    pub async fn deactivate_user(&self, id: Uuid) -> Result<User, ApiError> {
-        let user = sqlx::query_as::<_, User>(
-            r#"
-            UPDATE users
-            SET is_active = false, updated_at = $1
-            WHERE id = $2
-            RETURNING *
-            "#,
-        )
-        .bind(Utc::now())
-        .bind(id)
-        .fetch_one(&self.pool)
-        .await?;
-
-        Ok(user)
-    }
-
-    pub async fn activate_user(&self, id: Uuid) -> Result<User, ApiError> {
-        let user = sqlx::query_as::<_, User>(
-            r#"
-            UPDATE users
-            SET is_active = true, updated_at = $1
-            WHERE id = $2
-            RETURNING *
-            "#,
-        )
-        .bind(Utc::now())
-        .bind(id)
-        .fetch_one(&self.pool)
-        .await?;
-
-        Ok(user)
-    }
-
     pub async fn update_password(
         &self,
         id: Uuid,

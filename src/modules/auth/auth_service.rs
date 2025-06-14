@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use bcrypt::verify;
 
-use crate::{config::models::Repositories, core::errors::errors::ApiError, db::models::user::User};
+use crate::{
+    config::models::Repositories, core::errors::errors::ApiError, db::models::user::User,
+    modules::user::user_models::CreateUserRequest,
+};
 
 #[derive(Clone)]
 pub struct AuthService {
@@ -14,6 +17,26 @@ impl AuthService {
         AuthService {
             repositories: repository,
         }
+    }
+
+    pub async fn create_user(&self, user: CreateUserRequest) -> Result<User, ApiError> {
+        // Vérification si l'utilisateur existe déjà
+        if self
+            .repositories
+            .user_repository
+            .find_by_email(&user.email)
+            .await?
+            .is_some()
+        {
+            return Err(ApiError::Validation(
+                "Un utilisateur avec cet email existe déjà".to_string(),
+            ));
+        }
+        // Création de l'utilisateur
+        let user = User::new(user.username, user.email, user.password);
+        let created_user = self.repositories.user_repository.create_user(user).await?;
+
+        Ok(created_user)
     }
 
     pub async fn authenticate_user(
@@ -40,13 +63,6 @@ impl AuthService {
         if !verify_password(&password, &user.password_hash)? {
             return Err(ApiError::Authentication(
                 "Email ou mot de passe invalide".to_string(),
-            ));
-        }
-
-        // Vérification si le compte est actif
-        if !user.is_active {
-            return Err(ApiError::Authorization(
-                "Votre compte est désactivé".to_string(),
             ));
         }
 

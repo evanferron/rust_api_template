@@ -9,7 +9,6 @@ pub struct UserResponse {
     pub id: Uuid,
     pub username: String,
     pub email: String,
-    pub is_active: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -20,7 +19,6 @@ impl From<User> for UserResponse {
             id: user.id,
             username: user.username,
             email: user.email,
-            is_active: user.is_active,
             created_at: user.created_at.to_rfc3339(),
             updated_at: user.updated_at.to_rfc3339(),
         }

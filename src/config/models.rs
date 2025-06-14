@@ -21,6 +21,8 @@ pub struct DatabaseConfig {
 pub struct JwtConfig {
     pub secret: String,
     pub expiration: i64,
+    pub refresh_secret: String,
+    pub refresh_expiration: i64,
 }
 
 #[derive(Clone)]

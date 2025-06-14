@@ -11,7 +11,6 @@ pub struct User {
     pub username: String,
     pub email: String,
     pub password_hash: String,
-    pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -24,7 +23,6 @@ impl User {
             username,
             email,
             password_hash,
-            is_active: true,
             created_at: now,
             updated_at: now,
         }
@@ -68,7 +66,6 @@ impl Entry for User {
             "username",
             "email",
             "password_hash",
-            "is_active",
             "created_at",
             "updated_at",
         ]

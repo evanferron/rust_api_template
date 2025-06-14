@@ -32,6 +32,12 @@ impl Config {
                 .unwrap_or_else(|_| "86400".to_string())
                 .parse::<i64>()
                 .unwrap_or(86400),
+            refresh_secret: env::var("JWT_REFRESH_SECRET")
+                .expect("JWT_REFRESH_SECRET doit être définie"),
+            refresh_expiration: env::var("JWT_REFRESH_EXPIRATION")
+                .unwrap_or_else(|_| "604800".to_string())
+                .parse::<i64>()
+                .unwrap_or(604800),
         };
 
         Ok(Config {
