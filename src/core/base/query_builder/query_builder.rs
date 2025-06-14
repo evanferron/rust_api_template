@@ -464,7 +464,6 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
             query_builder.push(" OFFSET ");
             query_builder.push(offset.to_string());
         }
-
         query_builder
     }
 
@@ -487,7 +486,10 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
             }
             query_builder.push(column);
             query_builder.push(" = ");
-            query_builder.push_bind(value.clone());
+            match value {
+                Value::String(s) => query_builder.push_bind(s.clone()),
+                _ => query_builder.push_bind(value.clone()),
+            };
             first = false;
         }
 
@@ -526,7 +528,10 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
             if i > 0 {
                 query_builder.push(", ");
             }
-            query_builder.push_bind(value.clone());
+            match value {
+                Value::String(s) => query_builder.push_bind(s.clone()),
+                _ => query_builder.push_bind(value.clone()),
+            };
         }
         query_builder.push(")");
 
@@ -572,7 +577,10 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
                             if j > 0 {
                                 query_builder.push(", ");
                             }
-                            query_builder.push_bind(value.clone());
+                            match value {
+                                Value::String(s) => query_builder.push_bind(s.clone()),
+                                _ => query_builder.push_bind(value.clone()),
+                            };
                         }
                         query_builder.push(")");
                     }
@@ -581,16 +589,25 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
                     if let Some(values) = &condition.values {
                         if values.len() == 2 {
                             query_builder.push(" ");
-                            query_builder.push_bind(values[0].clone());
+                            match &values[0] {
+                                Value::String(s) => query_builder.push_bind(s.clone()),
+                                _ => query_builder.push_bind(values[0].clone()),
+                            };
                             query_builder.push(" AND ");
-                            query_builder.push_bind(values[1].clone());
+                            match &values[1] {
+                                Value::String(s) => query_builder.push_bind(s.clone()),
+                                _ => query_builder.push_bind(values[1].clone()),
+                            };
                         }
                     }
                 }
                 _ => {
                     if let Some(value) = &condition.value {
                         query_builder.push(" ");
-                        query_builder.push_bind(value.clone());
+                        match value {
+                            Value::String(s) => query_builder.push_bind(s.clone()),
+                            _ => query_builder.push_bind(value.clone()),
+                        };
                     }
                 }
             }

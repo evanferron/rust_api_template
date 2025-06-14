@@ -1,8 +1,9 @@
+use bcrypt::verify;
 use chrono::Utc;
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use uuid::Uuid;
 
-use crate::modules::auth::auth_models::Claims;
+use crate::{core::errors::errors::ApiError, modules::auth::auth_models::Claims};
 
 pub fn generate_jwt(
     user_id: Uuid,
@@ -24,4 +25,10 @@ pub fn generate_jwt(
         &claims,
         &EncodingKey::from_secret(secret.as_bytes()),
     )
+}
+
+pub fn verify_password(password: &str, hash: &str) -> Result<bool, ApiError> {
+    verify(password, hash).map_err(|e| {
+        ApiError::InternalServer(format!("Échec de la vérification du mot de passe: {}", e))
+    })
 }
