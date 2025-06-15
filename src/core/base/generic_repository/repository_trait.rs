@@ -402,14 +402,6 @@ pub trait RepositoryTrait<T: Entry + Send + Sync + Unpin + 'static> {
             .await
     }
 
-    /// Binds a serde_json::Value to a SQLx QueryBuilder.
-    fn bind_value(&self, query_builder: &mut QueryBuilder<'_, Postgres>, value: Value) {
-        match value {
-            Value::String(s) => query_builder.push_bind(s),
-            _ => query_builder.push_bind(value),
-        };
-    }
-
     /// Fetches a paginated and optionally sorted list of records.
     async fn paginate_sorted(
         &self,

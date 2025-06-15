@@ -486,10 +486,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
             }
             query_builder.push(column);
             query_builder.push(" = ");
-            match value {
-                Value::String(s) => query_builder.push_bind(s.clone()),
-                _ => query_builder.push_bind(value.clone()),
-            };
+            self.bind_value(&mut query_builder, value.clone());
             first = false;
         }
 
@@ -528,10 +525,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
             if i > 0 {
                 query_builder.push(", ");
             }
-            match value {
-                Value::String(s) => query_builder.push_bind(s.clone()),
-                _ => query_builder.push_bind(value.clone()),
-            };
+            self.bind_value(&mut query_builder, value.clone());
         }
         query_builder.push(")");
 
@@ -577,10 +571,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
                             if j > 0 {
                                 query_builder.push(", ");
                             }
-                            match value {
-                                Value::String(s) => query_builder.push_bind(s.clone()),
-                                _ => query_builder.push_bind(value.clone()),
-                            };
+                            self.bind_value(query_builder, value.clone());
                         }
                         query_builder.push(")");
                     }
@@ -589,25 +580,16 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
                     if let Some(values) = &condition.values {
                         if values.len() == 2 {
                             query_builder.push(" ");
-                            match &values[0] {
-                                Value::String(s) => query_builder.push_bind(s.clone()),
-                                _ => query_builder.push_bind(values[0].clone()),
-                            };
+                            self.bind_value(query_builder, values[0].clone());
                             query_builder.push(" AND ");
-                            match &values[1] {
-                                Value::String(s) => query_builder.push_bind(s.clone()),
-                                _ => query_builder.push_bind(values[1].clone()),
-                            };
+                            self.bind_value(query_builder, values[1].clone());
                         }
                     }
                 }
                 _ => {
                     if let Some(value) = &condition.value {
                         query_builder.push(" ");
-                        match value {
-                            Value::String(s) => query_builder.push_bind(s.clone()),
-                            _ => query_builder.push_bind(value.clone()),
-                        };
+                        self.bind_value(query_builder, value.clone());
                     }
                 }
             }
@@ -756,5 +738,24 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
             .map_err(ApiError::Database)?;
 
         Ok(items)
+    }
+
+    /// # Method that must be used to bind values to the query
+    /// It handles the conversion of `Value::String` to `String` for proper binding
+    fn bind_value(&self, query_builder: &mut QueryBuilder<'_, Postgres>, value: Value) {
+        match value {
+            // Handle UUIDs represented as strings
+            Value::String(ref s) => {
+                // Try to parse as UUID, otherwise bind as string
+                if let Ok(uuid) = uuid::Uuid::parse_str(s) {
+                    query_builder.push_bind(uuid);
+                } else {
+                    query_builder.push_bind(s.clone());
+                }
+            }
+            _ => {
+                query_builder.push_bind(value);
+            }
+        };
     }
 }
