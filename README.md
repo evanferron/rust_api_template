@@ -127,11 +127,8 @@ cargo test
 ## Contribution
 
 1. Forkez le repo
-2. Créez une branche (`feature/ma-feature`)
+2. Créez une branche
 3. Commitez vos modifications
 4. Poussez la branche
 5. Ouvrez une Pull Request
 
-## Licence
-
-MIT
