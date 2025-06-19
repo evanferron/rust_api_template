@@ -1,10 +1,10 @@
 use crate::config::config::Config;
 use crate::core::base::generic_middleware::GenericMiddleware;
-use crate::modules::auth::auth_models::Claims;
+use crate::core::errors::errors::ApiError;
+use crate::modules::auth::auth_helpers::verify_token;
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse};
 use actix_web::{Error, HttpMessage};
 use futures::future::LocalBoxFuture;
-use jsonwebtoken::{Algorithm, DecodingKey, TokenData, Validation, decode};
 use std::rc::Rc;
 
 pub fn auth_middleware<S, B>() -> GenericMiddleware<
@@ -27,9 +27,10 @@ where
                 let token = match auth_header {
                     Some(h) if h.starts_with("Bearer ") => h[7..].to_string(),
                     _ => {
-                        return Err(actix_web::error::ErrorUnauthorized(
-                            "Missing or invalid Authorization header",
-                        ));
+                        return Err(ApiError::Validation(
+                            "Missing or invalid Authorization header".to_string(),
+                        )
+                        .into());
                     }
                 };
 
@@ -37,25 +38,15 @@ where
                 let secret = match config {
                     Some(cfg) => &cfg.jwt.secret,
                     None => {
-                        return Err(actix_web::error::ErrorInternalServerError(
-                            "Missing configuration for JWT secret",
-                        ));
+                        return Err(ApiError::Validation(
+                            "Missing configuration for JWT secret".to_string(),
+                        )
+                        .into());
                     }
                 };
 
-                let token_data: Result<TokenData<Claims>, _> = decode::<Claims>(
-                    &token,
-                    &DecodingKey::from_secret(secret.as_bytes()),
-                    &Validation::new(Algorithm::HS256),
-                );
-                let claims = match token_data {
-                    Ok(data) => data.claims,
-                    Err(_) => {
-                        return Err(actix_web::error::ErrorUnauthorized(
-                            "Invalid token or expired",
-                        ));
-                    }
-                };
+                let claims = verify_token(&token, secret)
+                    .map_err(|e| ApiError::Authentication(e.to_string()))?;
 
                 req.extensions_mut().insert(claims);
 

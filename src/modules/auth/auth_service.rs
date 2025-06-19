@@ -6,7 +6,7 @@ use crate::{
     config::models::Repositories,
     core::errors::errors::ApiError,
     db::models::user::User,
-    modules::{auth::auth_helpers::verify_password, user::user_models::CreateUserRequest},
+    modules::auth::{auth_helpers::verify_password, auth_models::RegisterRequest},
 };
 
 #[derive(Clone)]
@@ -21,7 +21,7 @@ impl AuthService {
         }
     }
 
-    pub async fn create_user(&self, user: CreateUserRequest) -> Result<User, ApiError> {
+    pub async fn create_user(&self, user: RegisterRequest) -> Result<User, ApiError> {
         if self
             .repositories
             .user_repository

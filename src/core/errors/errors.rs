@@ -6,28 +6,28 @@ use utoipa::ToSchema;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ApiError {
-    #[error("Erreur d'authentification: {0}")]
+    #[error("Authentication error: {0}")]
     Authentication(String),
 
-    #[error("Erreur d'autorisation: {0}")]
+    #[error("Authorization error: {0}")]
     Authorization(String),
 
-    #[error("Erreur lors de la validation: {0}")]
+    #[error("Validation error: {0}")]
     Validation(String),
 
-    #[error("Ressource non trouvée: {0}")]
+    #[error("Resource not found: {0}")]
     NotFound(String),
 
-    #[error("Erreur de conflit: {0}")]
+    #[error("Conflict error: {0}")]
     Conflict(String),
 
-    #[error("Erreur interne du serveur: {0}")]
+    #[error("Internal server error: {0}")]
     InternalServer(String),
 
-    #[error("Erreur de base de données: {0}")]
+    #[error("Database error: {0}")]
     Database(SqlxError),
 
-    #[error("Erreur de serialisation: {0}")]
+    #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
 
     #[error("Invalid column name: {0}")]
@@ -97,28 +97,28 @@ impl ResponseError for ApiError {
             ApiError::Database(err) => {
                 let error_response = ErrorResponse {
                     status: 500,
-                    message: format!("Erreur de base de données: {}", err),
+                    message: format!("Database error: {}", err),
                 };
                 HttpResponse::InternalServerError().json(error_response)
             }
             ApiError::Serialization(err) => {
                 let error_response = ErrorResponse {
                     status: 500,
-                    message: format!("Erreur de sérialisation: {}", err),
+                    message: format!("Serialization error: {}", err),
                 };
                 HttpResponse::InternalServerError().json(error_response)
             }
             ApiError::InvalidColumn(column) => {
                 let error_response = ErrorResponse {
                     status: 400,
-                    message: format!("Nom de colonne invalide: {}", column),
+                    message: format!("Invalid column name: {}", column),
                 };
                 HttpResponse::BadRequest().json(error_response)
             }
             ApiError::InvalidQuery(query) => {
                 let error_response = ErrorResponse {
                     status: 400,
-                    message: format!("Requête invalide: {}", query),
+                    message: format!("Invalid query: {}", query),
                 };
                 HttpResponse::BadRequest().json(error_response)
             }
