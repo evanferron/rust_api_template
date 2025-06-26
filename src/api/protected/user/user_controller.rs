@@ -21,7 +21,7 @@ pub async fn get_users(services: web::Data<Services>) -> Result<impl Responder, 
 
     let user_responses: Vec<UserResponse> = users.into_iter().map(|u| u.into()).collect();
 
-    Ok(HttpResponse::Ok().json(user_responses))
+    Ok(web::Json(user_responses))
 }
 
 #[utoipa::path(
@@ -43,7 +43,7 @@ pub async fn get_user_by_id(
     services: web::Data<Services>,
 ) -> Result<impl Responder, ApiError> {
     let user = services.user_service.get_user_by_id(path.id).await?;
-    Ok(HttpResponse::Ok().json(UserResponse::from(user)))
+    Ok(web::Json(UserResponse::from(user)))
 }
 
 #[utoipa::path(
@@ -110,7 +110,7 @@ pub async fn update_user(
         )
         .await?;
 
-    Ok(HttpResponse::Ok().json(UserResponse::from(user)))
+    Ok(web::Json(UserResponse::from(user)))
 }
 
 #[utoipa::path(

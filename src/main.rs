@@ -7,7 +7,7 @@ mod modules;
 use config::{config::Config, server::Server};
 use dotenv::dotenv;
 
-#[actix_web::main]
+#[tokio::main(flavor = "multi_thread", worker_threads = 4)]
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
 
@@ -20,3 +20,6 @@ async fn main() -> std::io::Result<()> {
     // Démarrage du serveur
     server.run().await
 }
+// todo : voir pour le content encodding : https://actix.rs/docs/response#content-encoding
+// todo : revoir la gestion des erreurs(utiliser actix.web::Error) : https://actix.rs/docs/errors/#recommended-practices-in-error-handling
+// todo : revoir la gestion des logs : https://docs.rs/log/latest/log/ faire en sorte d'avoir un logger pouvant afficher en AEG ou json

@@ -35,6 +35,7 @@ utoipa = { version = "5.3.1", features = ["actix_extras", "uuid", "chrono"] }
 utoipa-swagger-ui = { version = "9.0.2", features = ["actix-web"] }
 futures = "0.3.31"
 async-trait = "0.1.80"
+derive_more = "2.0.1"
 
 [dev-dependencies]
 actix-http = "3.11.0"

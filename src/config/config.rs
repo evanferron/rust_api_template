@@ -23,6 +23,22 @@ impl Config {
         };
 
         let database = DatabaseConfig {
+            max_connections: env::var("DATABASE_MAX_CONNECTIONS")
+                .unwrap_or_else(|_| "100".to_string())
+                .parse::<u32>()
+                .unwrap_or(100),
+            acquire_timeout: env::var("DATABASE_ACQUIRE_TIMEOUT")
+                .unwrap_or_else(|_| "3".to_string())
+                .parse::<u64>()
+                .unwrap_or(3),
+            idle_timeout: env::var("DATABASE_IDLE_TIMEOUT")
+                .unwrap_or_else(|_| "600".to_string())
+                .parse::<u64>()
+                .unwrap_or(600),
+            max_lifetime: env::var("DATABASE_MAX_LIFETIME")
+                .unwrap_or_else(|_| "1800".to_string())
+                .parse::<u64>()
+                .unwrap_or(1800),
             url: env::var("DATABASE_URL").expect("DATABASE_URL doit être définie"),
         };
 
@@ -30,13 +46,13 @@ impl Config {
             secret: env::var("JWT_SECRET").expect("JWT_SECRET doit être définie"),
             expiration: env::var("JWT_EXPIRATION")
                 .unwrap_or_else(|_| "86400".to_string())
-                .parse::<i64>()
+                .parse::<u32>()
                 .unwrap_or(86400),
             refresh_secret: env::var("JWT_REFRESH_SECRET")
                 .expect("JWT_REFRESH_SECRET doit être définie"),
             refresh_expiration: env::var("JWT_REFRESH_EXPIRATION")
                 .unwrap_or_else(|_| "604800".to_string())
-                .parse::<i64>()
+                .parse::<u32>()
                 .unwrap_or(604800),
         };
 

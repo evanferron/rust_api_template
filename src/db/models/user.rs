@@ -32,24 +32,8 @@ impl User {
 impl Entry for User {
     type Id = Uuid;
 
-    fn id(&self) -> Self::Id {
-        self.id
-    }
-
-    fn set_id(&mut self, id: Self::Id) {
-        self.id = id;
-    }
-
-    fn created_at(&self) -> Option<DateTime<Utc>> {
-        Some(self.created_at)
-    }
-
     fn set_created_at(&mut self, created_at: DateTime<Utc>) {
         self.created_at = created_at;
-    }
-
-    fn updated_at(&self) -> Option<DateTime<Utc>> {
-        Some(self.updated_at)
     }
 
     fn set_updated_at(&mut self, updated_at: DateTime<Utc>) {

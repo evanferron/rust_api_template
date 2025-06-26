@@ -1,5 +1,5 @@
 use crate::modules::auth::auth_middleware::auth_middleware;
-use actix_web::web;
+use actix_web::{middleware, web};
 
 mod auth;
 mod health;
@@ -13,7 +13,7 @@ pub fn routes_config(cfg: &mut web::ServiceConfig) {
             .service(web::scope("/auth").configure(auth::routes_config))
             .service(
                 web::scope("/protected")
-                    .wrap(auth_middleware())
+                    .wrap(middleware::from_fn(auth_middleware))
                     .configure(protected::routes_config),
             ),
     );

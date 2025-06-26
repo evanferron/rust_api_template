@@ -6,7 +6,7 @@ use crate::modules::auth::auth_service::AuthService;
 use crate::modules::user::user_service::UserService;
 use crate::{api, db::repositories::user_repository::UserRepository};
 use actix_cors::Cors;
-use actix_web::{App, HttpServer, web};
+use actix_web::{App, HttpServer, middleware, web};
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 use std::time::Duration;
@@ -25,13 +25,14 @@ impl Server {
 
     pub async fn run(&self) -> std::io::Result<()> {
         let config = self.config.clone();
-
         println!("Starting server with configuration: {:#?}", config);
 
         // Configuration de la pool de connexions à la base de données
         let pool = PgPoolOptions::new()
-            .max_connections(5)
-            .acquire_timeout(Duration::from_secs(3))
+            .max_connections(config.database.max_connections)
+            .acquire_timeout(Duration::from_secs(config.database.acquire_timeout))
+            .idle_timeout(Duration::from_secs(config.database.idle_timeout))
+            .max_lifetime(Duration::from_secs(config.database.max_lifetime))
             .connect(&config.database.url)
             .await
             .expect("Cannot connect to the database");
@@ -64,6 +65,7 @@ impl Server {
         };
 
         HttpServer::new(move || {
+            // todo : ajouter les origines autorisées dynamiquement
             // Configuration CORS
             let cors = Cors::default()
                 .allowed_origin("http://localhost:3000")
@@ -74,7 +76,7 @@ impl Server {
 
             App::new()
                 .wrap(cors)
-                .wrap(logger_middleware())
+                .wrap(middleware::from_fn(logger_middleware))
                 .app_data(web::Data::new(pool.clone()))
                 .app_data(web::Data::new(config.clone()))
                 .app_data(web::Data::new(Arc::clone(&repositories)))
@@ -88,5 +90,7 @@ impl Server {
         .bind(format!("{}:{}", host, port))?
         .run()
         .await
+
+        // todo : ajouter un default service pour les routes non définies
     }
 }

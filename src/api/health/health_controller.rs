@@ -25,7 +25,7 @@ pub async fn health_check(pool: web::Data<PgPool>) -> impl Responder {
     let db_status = check_connection(&pool).await.is_ok();
     let status = if db_status { "ok" } else { "error" };
 
-    HttpResponse::Ok().json(HealthResponse {
+    web::Json(HealthResponse {
         status: status.to_string(),
         timestamp: chrono::Utc::now().to_rfc3339(),
         version: env!("CARGO_PKG_VERSION").to_string(),

@@ -104,7 +104,7 @@ pub async fn login(
         config.jwt.refresh_expiration,
     );
 
-    Ok(HttpResponse::Ok().json(AuthResponse {
+    Ok(web::Json(AuthResponse {
         id: authenticated_user.id,
         username: authenticated_user.username,
         email: authenticated_user.email,
@@ -147,7 +147,7 @@ pub async fn refresh(
         config.jwt.refresh_expiration,
     );
 
-    Ok(HttpResponse::Ok().json(RefreshResponse {
+    Ok(web::Json(RefreshResponse {
         token: new_token.map_err(|e| ApiError::InternalServer(e.to_string()))?,
         refresh_token: new_refresh_token.map_err(|e| ApiError::InternalServer(e.to_string()))?,
     }))

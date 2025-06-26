@@ -15,11 +15,7 @@ use sqlx::{FromRow, postgres::PgRow};
 /// - `Id`: The type used for the entity's unique identifier.
 ///
 /// # Required Methods
-/// - `id(&self) -> Self::Id`: Returns the entity's unique identifier.
-/// - `set_id(&mut self, id: Self::Id)`: Sets the entity's unique identifier.
-/// - `created_at(&self) -> Option<DateTime<Utc>>`: Returns the creation timestamp.
 /// - `set_created_at(&mut self, created_at: DateTime<Utc>)`: Sets the creation timestamp.
-/// - `updated_at(&self) -> Option<DateTime<Utc>>`: Returns the last update timestamp.
 /// - `set_updated_at(&mut self, updated_at: DateTime<Utc>)`: Sets the last update timestamp.
 /// - `table_name() -> &'static str`: Returns the database table name for the entity.
 /// - `columns() -> Vec<&'static str>`: Returns the list of column names for the entity.
@@ -36,13 +32,8 @@ pub trait Entry:
         + Debug
         + serde::Serialize;
 
-    fn id(&self) -> Self::Id;
-    fn set_id(&mut self, id: Self::Id);
-
-    fn created_at(&self) -> Option<DateTime<Utc>>;
     fn set_created_at(&mut self, created_at: DateTime<Utc>);
 
-    fn updated_at(&self) -> Option<DateTime<Utc>>;
     fn set_updated_at(&mut self, updated_at: DateTime<Utc>);
 
     fn table_name() -> &'static str;

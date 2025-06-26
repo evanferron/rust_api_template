@@ -7,10 +7,10 @@ use crate::{core::errors::errors::ApiError, modules::auth::auth_models::Claims};
 pub fn generate_jwt(
     user: crate::modules::auth::auth_models::Sub,
     secret: &str,
-    expiration_seconds: i64,
+    expiration_seconds: u32,
 ) -> Result<String, jsonwebtoken::errors::Error> {
     let now = Utc::now();
-    let expiration = now + chrono::Duration::seconds(expiration_seconds);
+    let expiration = now + chrono::Duration::seconds(expiration_seconds.into());
 
     let claims = Claims {
         sub: user.id.to_string(),
