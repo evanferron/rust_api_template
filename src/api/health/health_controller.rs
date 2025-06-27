@@ -1,5 +1,5 @@
 use crate::{core::errors::errors::ErrorResponse, db::connection::check_connection};
-use actix_web::{HttpResponse, Responder, get, web};
+use actix_web::{Responder, get, web};
 use serde::Serialize;
 use sqlx::PgPool;
 

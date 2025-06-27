@@ -11,15 +11,15 @@ use dotenv::dotenv;
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
 
-    // Création de la configuration du serveur à partir des variables d'environnement
-    let config = Config::from_env().expect("Configuration du serveur");
+    // Server configuration from environment variables
+    let config = Config::from_env().expect("Server configuration failed");
 
-    // création du serveur
+    // Create server instance
     let server = Server::new(config);
 
-    // Démarrage du serveur
+    // Start the server
     server.run().await
 }
-// todo : voir pour le content encodding : https://actix.rs/docs/response#content-encoding
-// todo : revoir la gestion des erreurs(utiliser actix.web::Error) : https://actix.rs/docs/errors/#recommended-practices-in-error-handling
-// todo : revoir la gestion des logs : https://docs.rs/log/latest/log/ faire en sorte d'avoir un logger pouvant afficher en AEG ou json
+// TODO: Consider content encoding: https://actix.rs/docs/response#content-encoding
+// TODO: Review error handling (use actix.web::Error): https://actix.rs/docs/errors/#recommended-practices-in-error-handling
+// TODO: Review logging management: https://docs.rs/log/latest/log/ - implement logger with JSON or structured output capability
