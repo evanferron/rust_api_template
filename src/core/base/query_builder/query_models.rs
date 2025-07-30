@@ -79,6 +79,18 @@ pub struct WhereCondition {
 }
 
 #[derive(Debug, Clone)]
+pub enum WhereClause {
+    Condition(WhereCondition),
+    Group(Box<WhereGroup>),
+}
+
+#[derive(Debug, Clone)]
+pub struct WhereGroup {
+    pub clauses: Vec<(WhereClause, Option<LogicalOperator>)>,
+    pub operator: LogicalOperator, // Opérateur pour joindre ce groupe avec d'autres
+}
+
+#[derive(Debug, Clone)]
 pub struct OrderBy {
     pub column: String,
     pub direction: OrderDirection,

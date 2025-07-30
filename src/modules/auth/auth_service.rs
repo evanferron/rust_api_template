@@ -29,7 +29,7 @@ impl AuthService {
             .await?
             .is_some()
         {
-            return Err(ApiError::Validation(
+            return Err(ApiError::BadRequest(
                 "Un utilisateur avec cet email existe déjà".to_string(),
             ));
         }

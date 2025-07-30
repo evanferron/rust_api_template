@@ -65,7 +65,7 @@ pub async fn create_user(
 ) -> Result<impl Responder, ApiError> {
     // Validation des données
     if let Err(e) = user.validate() {
-        return Err(ApiError::Validation(format!("{}", e)));
+        return Err(ApiError::BadRequest(format!("{}", e)));
     }
 
     let user = services.user_service.create_user(user.into_inner()).await?;
@@ -97,7 +97,7 @@ pub async fn update_user(
 ) -> Result<impl Responder, ApiError> {
     // Validation des données
     if let Err(e) = req.validate() {
-        return Err(ApiError::Validation(format!("{}", e)));
+        return Err(ApiError::BadRequest(format!("{}", e)));
     }
 
     let user = services

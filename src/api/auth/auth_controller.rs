@@ -30,7 +30,7 @@ pub async fn register(
     user: web::Json<RegisterRequest>,
 ) -> Result<impl Responder, ApiError> {
     user.validate()
-        .map_err(|e| ApiError::Validation(e.to_string()))?;
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
     let created_user = services.auth_service.create_user(user.into_inner()).await?;
 
@@ -79,7 +79,7 @@ pub async fn login(
     user: web::Json<LoginRequest>,
 ) -> Result<impl Responder, ApiError> {
     user.validate()
-        .map_err(|e| ApiError::Validation(e.to_string()))?;
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
     let authenticated_user = services
         .auth_service

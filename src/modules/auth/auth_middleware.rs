@@ -17,7 +17,7 @@ pub async fn auth_middleware(
     let token = match auth_header {
         Some(h) if h.starts_with("Bearer ") => h[7..].to_string(),
         _ => {
-            return Err(ApiError::Validation(
+            return Err(ApiError::BadRequest(
                 "Missing or invalid Authorization header".to_string(),
             )
             .into());
@@ -29,7 +29,7 @@ pub async fn auth_middleware(
         Some(cfg) => &cfg.jwt.secret,
         None => {
             return Err(
-                ApiError::Validation("Missing configuration for JWT secret".to_string()).into(),
+                ApiError::BadRequest("Missing configuration for JWT secret".to_string()).into(),
             );
         }
     };

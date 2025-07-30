@@ -13,7 +13,7 @@ pub enum ApiError {
     Authorization(String),
 
     #[error("Validation error: {0}")]
-    Validation(String),
+    BadRequest(String),
 
     #[error("Resource not found: {0}")]
     NotFound(String),
@@ -35,6 +35,15 @@ pub enum ApiError {
 
     #[error("Invalid query: {0}")]
     InvalidQuery(String),
+
+    #[error(
+        "Rate limit exceeded for client {client_id}: max {max_requests} requests in {window_duration:?}"
+    )]
+    RateLimitExceeded {
+        client_id: String,
+        max_requests: u32,
+        window_duration: std::time::Duration,
+    },
 }
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -66,7 +75,7 @@ impl ResponseError for ApiError {
                 };
                 HttpResponse::Forbidden().json(error_response)
             }
-            ApiError::Validation(message) => {
+            ApiError::BadRequest(message) => {
                 let error_response = ErrorResponse {
                     status: 400,
                     message: message.to_string(),
@@ -121,6 +130,22 @@ impl ResponseError for ApiError {
                     message: format!("Invalid query: {}", query),
                 };
                 HttpResponse::BadRequest().json(error_response)
+            }
+            ApiError::RateLimitExceeded {
+                client_id,
+                max_requests,
+                window_duration,
+            } => {
+                let error_response = ErrorResponse {
+                    status: 429,
+                    message: format!(
+                        "Rate limit exceeded for client {}: max {} requests in {:?} seconds",
+                        client_id,
+                        max_requests,
+                        window_duration.as_secs()
+                    ),
+                };
+                HttpResponse::TooManyRequests().json(error_response)
             }
         }
     }

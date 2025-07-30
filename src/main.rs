@@ -20,6 +20,3 @@ async fn main() -> std::io::Result<()> {
     // Start the server
     server.run().await
 }
-// TODO: Consider content encoding: https://actix.rs/docs/response#content-encoding
-// TODO: Review error handling (use actix.web::Error): https://actix.rs/docs/errors/#recommended-practices-in-error-handling
-// TODO: Review logging management: https://docs.rs/log/latest/log/ - implement logger with JSON or structured output capability

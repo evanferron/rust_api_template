@@ -2,6 +2,7 @@ use super::config::Config;
 use crate::api::swagger::ApiDoc;
 use crate::config::models::{Repositories, Services};
 use crate::core::middlewares::logger::logger_middleware;
+use crate::core::middlewares::rate_limiter::{RateLimiterConfig, rate_limiter_middleware};
 use crate::modules::auth::auth_service::AuthService;
 use crate::modules::user::user_service::UserService;
 use crate::{api, db::repositories::user_repository::UserRepository};
@@ -76,6 +77,13 @@ impl Server {
             auth_service: AuthService::new(Arc::clone(&repositories)),
         };
 
+        // Configuration du rate limiting
+        let rate_limit_config = RateLimiterConfig {
+            max_requests: 100,
+            window_duration: Duration::from_secs(60),
+            identifier_header: None,
+        };
+
         HttpServer::new(move || {
             // todo : ajouter les origines autorisées dynamiquement
             // Configuration CORS
@@ -88,7 +96,9 @@ impl Server {
 
             App::new()
                 .wrap(cors)
+                .wrap(middleware::from_fn(rate_limiter_middleware))
                 .wrap(middleware::from_fn(logger_middleware))
+                .app_data(web::Data::new(rate_limit_config.clone()))
                 .app_data(web::Data::new(pool.clone()))
                 .app_data(web::Data::new(config.clone()))
                 .app_data(web::Data::new(Arc::clone(&repositories)))

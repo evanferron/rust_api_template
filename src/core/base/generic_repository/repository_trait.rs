@@ -7,7 +7,7 @@ use crate::core::{
 
 use super::entry_trait::Entry;
 use serde_json::Value;
-use sqlx::{Pool, Postgres, QueryBuilder};
+use sqlx::{Pool, Postgres};
 
 pub type RepositoryResult<T> = Result<T, ApiError>;
 

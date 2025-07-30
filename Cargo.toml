@@ -8,11 +8,13 @@ actix = "0.13.5"
 actix-web = "4.11.0"
 actix-ws = "0.3.0"
 actix-rt = "2.10.0"
-tokio = { version = "1.45.1", features = ["full"] }
-config = "0.15.11"
+actix-multipart = "0.7.2"
+image = "0.25.6"
+tokio = { version = "1.47.0", features = ["full"] }
+config = "0.15.13"
 dotenv = "0.15.0"
 serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.140"
+serde_json = "1.0.141"
 log = "0.4.27"
 env_logger = "0.11.8"
 chrono = { version = "0.4.41", features = ["serde"] }
@@ -29,16 +31,17 @@ anyhow = "1.0.98"
 thiserror = "2.0.12"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
-tracing-actix-web = "0.7.18"
+tracing-actix-web = "0.7.19"
 actix-cors = "0.7.1"
 jsonwebtoken = "9.3.1"
 bcrypt = "0.17.0"
 validator = { version = "0.20.0", features = ["derive"] }
-utoipa = { version = "5.3.1", features = ["actix_extras", "uuid", "chrono"] }
+utoipa = { version = "5.4.0", features = ["actix_extras", "uuid", "chrono"] }
 utoipa-swagger-ui = { version = "9.0.2", features = ["actix-web"] }
 futures = "0.3.31"
 async-trait = "0.1.88"
 derive_more = "2.0.1"
+lazy_static = "1.5.0"
 
 [dev-dependencies]
 actix-http = "3.11.0"

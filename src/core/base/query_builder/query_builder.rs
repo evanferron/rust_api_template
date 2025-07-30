@@ -7,7 +7,7 @@ use crate::core::{
         generic_repository::entry_trait::Entry,
         query_builder::query_models::{
             ComparisonOperator, JoinClause, JoinType, LogicalOperator, OrderBy, OrderDirection,
-            QueryResult, WhereCondition,
+            QueryResult, WhereClause, WhereCondition, WhereGroup,
         },
     },
     errors::errors::ApiError,
@@ -15,7 +15,7 @@ use crate::core::{
 
 #[derive(Debug)]
 pub struct QueryBuilderUtil<T: Entry> {
-    pub(crate) conditions: Vec<(WhereCondition, Option<LogicalOperator>)>,
+    pub(crate) where_clauses: Vec<(WhereClause, Option<LogicalOperator>)>,
     pub(crate) order_by: Vec<OrderBy>,
     pub(crate) joins: Vec<JoinClause>,
     pub(crate) limit: Option<u32>,
@@ -32,7 +32,7 @@ pub struct QueryBuilderUtil<T: Entry> {
 impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
     pub fn new() -> Self {
         Self {
-            conditions: Vec::new(),
+            where_clauses: Vec::new(),
             order_by: Vec::new(),
             joins: Vec::new(),
             limit: None,
@@ -50,85 +50,79 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
     // Méthodes pour construire les conditions WHERE
     pub fn where_eq<V: Into<Value>>(mut self, column: &str, value: V) -> Result<Self, ApiError> {
         self.validate_column(column)?;
-        self.conditions.push((
-            WhereCondition {
-                column: column.to_string(),
-                operator: ComparisonOperator::Equal,
-                value: Some(value.into()),
-                values: None,
-            },
-            None,
-        ));
+        let condition = WhereCondition {
+            column: column.to_string(),
+            operator: ComparisonOperator::Equal,
+            value: Some(value.into()),
+            values: None,
+        };
+        self.where_clauses
+            .push((WhereClause::Condition(condition), None));
         Ok(self)
     }
 
     pub fn where_ne<V: Into<Value>>(mut self, column: &str, value: V) -> Result<Self, ApiError> {
         self.validate_column(column)?;
-        self.conditions.push((
-            WhereCondition {
-                column: column.to_string(),
-                operator: ComparisonOperator::NotEqual,
-                value: Some(value.into()),
-                values: None,
-            },
-            None,
-        ));
+        let condition = WhereCondition {
+            column: column.to_string(),
+            operator: ComparisonOperator::NotEqual,
+            value: Some(value.into()),
+            values: None,
+        };
+        self.where_clauses
+            .push((WhereClause::Condition(condition), None));
         Ok(self)
     }
 
     pub fn where_gt<V: Into<Value>>(mut self, column: &str, value: V) -> Result<Self, ApiError> {
         self.validate_column(column)?;
-        self.conditions.push((
-            WhereCondition {
-                column: column.to_string(),
-                operator: ComparisonOperator::GreaterThan,
-                value: Some(value.into()),
-                values: None,
-            },
-            None,
-        ));
+        let condition = WhereCondition {
+            column: column.to_string(),
+            operator: ComparisonOperator::GreaterThan,
+            value: Some(value.into()),
+            values: None,
+        };
+        self.where_clauses
+            .push((WhereClause::Condition(condition), None));
         Ok(self)
     }
 
     pub fn where_gte<V: Into<Value>>(mut self, column: &str, value: V) -> Result<Self, ApiError> {
         self.validate_column(column)?;
-        self.conditions.push((
-            WhereCondition {
-                column: column.to_string(),
-                operator: ComparisonOperator::GreaterThanOrEqual,
-                value: Some(value.into()),
-                values: None,
-            },
-            None,
-        ));
+        let condition = WhereCondition {
+            column: column.to_string(),
+            operator: ComparisonOperator::GreaterThanOrEqual,
+            value: Some(value.into()),
+            values: None,
+        };
+        self.where_clauses
+            .push((WhereClause::Condition(condition), None));
         Ok(self)
     }
 
     pub fn where_lt<V: Into<Value>>(mut self, column: &str, value: V) -> Result<Self, ApiError> {
         self.validate_column(column)?;
-        self.conditions.push((
-            WhereCondition {
-                column: column.to_string(),
-                operator: ComparisonOperator::LessThan,
-                value: Some(value.into()),
-                values: None,
-            },
-            None,
-        ));
+        let condition = WhereCondition {
+            column: column.to_string(),
+            operator: ComparisonOperator::LessThan,
+            value: Some(value.into()),
+            values: None,
+        };
+        self.where_clauses
+            .push((WhereClause::Condition(condition), None));
         Ok(self)
     }
 
     pub fn where_lte<V: Into<Value>>(mut self, column: &str, value: V) -> Result<Self, ApiError> {
         self.validate_column(column)?;
-        self.conditions.push((
-            WhereCondition {
-                column: column.to_string(),
-                operator: ComparisonOperator::LessThanOrEqual,
-                value: Some(value.into()),
-                values: None,
-            },
-            None,
-        ));
+        let condition = WhereCondition {
+            column: column.to_string(),
+            operator: ComparisonOperator::LessThanOrEqual,
+            value: Some(value.into()),
+            values: None,
+        };
+        self.where_clauses
+            .push((WhereClause::Condition(condition), None));
         Ok(self)
     }
 
@@ -138,15 +132,14 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         pattern: V,
     ) -> Result<Self, ApiError> {
         self.validate_column(column)?;
-        self.conditions.push((
-            WhereCondition {
-                column: column.to_string(),
-                operator: ComparisonOperator::Like,
-                value: Some(pattern.into()),
-                values: None,
-            },
-            None,
-        ));
+        let condition = WhereCondition {
+            column: column.to_string(),
+            operator: ComparisonOperator::Like,
+            value: Some(pattern.into()),
+            values: None,
+        };
+        self.where_clauses
+            .push((WhereClause::Condition(condition), None));
         Ok(self)
     }
 
@@ -156,15 +149,14 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         pattern: V,
     ) -> Result<Self, ApiError> {
         self.validate_column(column)?;
-        self.conditions.push((
-            WhereCondition {
-                column: column.to_string(),
-                operator: ComparisonOperator::ILike,
-                value: Some(pattern.into()),
-                values: None,
-            },
-            None,
-        ));
+        let condition = WhereCondition {
+            column: column.to_string(),
+            operator: ComparisonOperator::ILike,
+            value: Some(pattern.into()),
+            values: None,
+        };
+        self.where_clauses
+            .push((WhereClause::Condition(condition), None));
         Ok(self)
     }
 
@@ -175,15 +167,14 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
     ) -> Result<Self, ApiError> {
         self.validate_column(column)?;
         let values: Vec<Value> = values.into_iter().map(|v| v.into()).collect();
-        self.conditions.push((
-            WhereCondition {
-                column: column.to_string(),
-                operator: ComparisonOperator::In,
-                value: None,
-                values: Some(values),
-            },
-            None,
-        ));
+        let condition = WhereCondition {
+            column: column.to_string(),
+            operator: ComparisonOperator::In,
+            value: None,
+            values: Some(values),
+        };
+        self.where_clauses
+            .push((WhereClause::Condition(condition), None));
         Ok(self)
     }
 
@@ -194,43 +185,40 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
     ) -> Result<Self, ApiError> {
         self.validate_column(column)?;
         let values: Vec<Value> = values.into_iter().map(|v| v.into()).collect();
-        self.conditions.push((
-            WhereCondition {
-                column: column.to_string(),
-                operator: ComparisonOperator::NotIn,
-                value: None,
-                values: Some(values),
-            },
-            None,
-        ));
+        let condition = WhereCondition {
+            column: column.to_string(),
+            operator: ComparisonOperator::NotIn,
+            value: None,
+            values: Some(values),
+        };
+        self.where_clauses
+            .push((WhereClause::Condition(condition), None));
         Ok(self)
     }
 
     pub fn where_null(mut self, column: &str) -> Result<Self, ApiError> {
         self.validate_column(column)?;
-        self.conditions.push((
-            WhereCondition {
-                column: column.to_string(),
-                operator: ComparisonOperator::IsNull,
-                value: None,
-                values: None,
-            },
-            None,
-        ));
+        let condition = WhereCondition {
+            column: column.to_string(),
+            operator: ComparisonOperator::IsNull,
+            value: None,
+            values: None,
+        };
+        self.where_clauses
+            .push((WhereClause::Condition(condition), None));
         Ok(self)
     }
 
     pub fn where_not_null(mut self, column: &str) -> Result<Self, ApiError> {
         self.validate_column(column)?;
-        self.conditions.push((
-            WhereCondition {
-                column: column.to_string(),
-                operator: ComparisonOperator::IsNotNull,
-                value: None,
-                values: None,
-            },
-            None,
-        ));
+        let condition = WhereCondition {
+            column: column.to_string(),
+            operator: ComparisonOperator::IsNotNull,
+            value: None,
+            values: None,
+        };
+        self.where_clauses
+            .push((WhereClause::Condition(condition), None));
         Ok(self)
     }
 
@@ -241,31 +229,76 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         end: V,
     ) -> Result<Self, ApiError> {
         self.validate_column(column)?;
-        self.conditions.push((
-            WhereCondition {
-                column: column.to_string(),
-                operator: ComparisonOperator::Between,
-                value: None,
-                values: Some(vec![start.into(), end.into()]),
-            },
-            None,
-        ));
+        let condition = WhereCondition {
+            column: column.to_string(),
+            operator: ComparisonOperator::Between,
+            value: None,
+            values: Some(vec![start.into(), end.into()]),
+        };
+        self.where_clauses
+            .push((WhereClause::Condition(condition), None));
         Ok(self)
     }
 
     // Opérateurs logiques
     pub fn and(mut self) -> Self {
-        if let Some(last) = self.conditions.last_mut() {
+        if let Some(last) = self.where_clauses.last_mut() {
             last.1 = Some(LogicalOperator::And);
         }
         self
     }
 
     pub fn or(mut self) -> Self {
-        if let Some(last) = self.conditions.last_mut() {
+        if let Some(last) = self.where_clauses.last_mut() {
             last.1 = Some(LogicalOperator::Or);
         }
         self
+    }
+
+    // ========== GROUPES DE CONDITIONS ==========
+
+    /// Crée un groupe de conditions avec AND
+    /// Exemple: where_group_and(|group| group.where_eq("status", "active").or().where_eq("priority", "high"))
+    /// Résultat: WHERE (status = 'active' OR priority = 'high') AND ...
+    pub fn where_group_and<F>(mut self, builder_fn: F) -> Result<Self, ApiError>
+    where
+        F: FnOnce(GroupBuilder<T>) -> Result<GroupBuilder<T>, ApiError>,
+    {
+        let group_builder = GroupBuilder::new();
+        let group_builder = builder_fn(group_builder)?;
+
+        if !group_builder.clauses.is_empty() {
+            let group = WhereGroup {
+                clauses: group_builder.clauses,
+                operator: LogicalOperator::And,
+            };
+            self.where_clauses
+                .push((WhereClause::Group(Box::new(group)), None));
+        }
+
+        Ok(self)
+    }
+
+    /// Crée un groupe de conditions avec OR
+    /// Exemple: where_group_or(|group| group.where_eq("status", "draft").and().where_eq("author_id", user_id))
+    /// Résultat: WHERE (status = 'draft' AND author_id = 123) OR ...
+    pub fn where_group_or<F>(mut self, builder_fn: F) -> Result<Self, ApiError>
+    where
+        F: FnOnce(GroupBuilder<T>) -> Result<GroupBuilder<T>, ApiError>,
+    {
+        let group_builder = GroupBuilder::new();
+        let group_builder = builder_fn(group_builder)?;
+
+        if !group_builder.clauses.is_empty() {
+            let group = WhereGroup {
+                clauses: group_builder.clauses,
+                operator: LogicalOperator::Or,
+            };
+            self.where_clauses
+                .push((WhereClause::Group(Box::new(group)), None));
+        }
+
+        Ok(self)
     }
 
     // Méthodes pour ORDER BY
@@ -429,7 +462,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         }
 
         // Ajouter les conditions WHERE
-        if !self.conditions.is_empty() {
+        if !self.where_clauses.is_empty() {
             query_builder.push(" WHERE ");
             self.build_where_conditions(&mut query_builder);
         }
@@ -491,7 +524,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         }
 
         // Ajouter les conditions WHERE
-        if !self.conditions.is_empty() {
+        if !self.where_clauses.is_empty() {
             query_builder.push(" WHERE ");
             self.build_where_conditions(&mut query_builder);
         }
@@ -538,7 +571,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         query_builder.push(T::table_name());
 
         // Ajouter les conditions WHERE
-        if !self.conditions.is_empty() {
+        if !self.where_clauses.is_empty() {
             query_builder.push(" WHERE ");
             self.build_where_conditions(&mut query_builder);
         }
@@ -547,50 +580,78 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
     }
 
     pub fn build_where_conditions(&self, query_builder: &mut QueryBuilder<'_, Postgres>) {
-        for (i, (condition, logical_op)) in self.conditions.iter().enumerate() {
-            if i > 0 && logical_op.is_some() {
+        self.build_where_clauses(&self.where_clauses, query_builder);
+    }
+
+    fn build_where_clauses(
+        &self,
+        clauses: &[(WhereClause, Option<LogicalOperator>)],
+        query_builder: &mut QueryBuilder<'_, Postgres>,
+    ) {
+        for (i, (clause, logical_op)) in clauses.iter().enumerate() {
+            // Ajouter l'opérateur logique si ce n'est pas la première condition
+            if i > 0 {
                 query_builder.push(" ");
-                query_builder.push(logical_op.as_ref().unwrap().to_sql());
+                if let Some(op) = logical_op {
+                    query_builder.push(op.to_sql());
+                } else {
+                    query_builder.push("AND"); // Par défaut
+                }
                 query_builder.push(" ");
-            } else if i > 0 {
-                query_builder.push(" AND ");
             }
 
-            query_builder.push(&condition.column);
-            query_builder.push(" ");
-            query_builder.push(condition.operator.to_sql());
+            match clause {
+                WhereClause::Condition(condition) => {
+                    self.build_single_condition(condition, query_builder);
+                }
+                WhereClause::Group(group) => {
+                    query_builder.push("(");
+                    self.build_where_clauses(&group.clauses, query_builder);
+                    query_builder.push(")");
+                }
+            }
+        }
+    }
 
-            match &condition.operator {
-                ComparisonOperator::IsNull | ComparisonOperator::IsNotNull => {
-                    // Pas de valeur pour ces opérateurs
-                }
-                ComparisonOperator::In | ComparisonOperator::NotIn => {
-                    if let Some(values) = &condition.values {
-                        query_builder.push(" (");
-                        for (j, value) in values.iter().enumerate() {
-                            if j > 0 {
-                                query_builder.push(", ");
-                            }
-                            self.bind_value(query_builder, value.clone());
+    fn build_single_condition(
+        &self,
+        condition: &WhereCondition,
+        query_builder: &mut QueryBuilder<'_, Postgres>,
+    ) {
+        query_builder.push(&condition.column);
+        query_builder.push(" ");
+        query_builder.push(condition.operator.to_sql());
+
+        match &condition.operator {
+            ComparisonOperator::IsNull | ComparisonOperator::IsNotNull => {
+                // Pas de valeur pour ces opérateurs
+            }
+            ComparisonOperator::In | ComparisonOperator::NotIn => {
+                if let Some(values) = &condition.values {
+                    query_builder.push(" (");
+                    for (j, value) in values.iter().enumerate() {
+                        if j > 0 {
+                            query_builder.push(", ");
                         }
-                        query_builder.push(")");
-                    }
-                }
-                ComparisonOperator::Between => {
-                    if let Some(values) = &condition.values {
-                        if values.len() == 2 {
-                            query_builder.push(" ");
-                            self.bind_value(query_builder, values[0].clone());
-                            query_builder.push(" AND ");
-                            self.bind_value(query_builder, values[1].clone());
-                        }
-                    }
-                }
-                _ => {
-                    if let Some(value) = &condition.value {
-                        query_builder.push(" ");
                         self.bind_value(query_builder, value.clone());
                     }
+                    query_builder.push(")");
+                }
+            }
+            ComparisonOperator::Between => {
+                if let Some(values) = &condition.values {
+                    if values.len() == 2 {
+                        query_builder.push(" ");
+                        self.bind_value(query_builder, values[0].clone());
+                        query_builder.push(" AND ");
+                        self.bind_value(query_builder, values[1].clone());
+                    }
+                }
+            }
+            _ => {
+                if let Some(value) = &condition.value {
+                    query_builder.push(" ");
+                    self.bind_value(query_builder, value.clone());
                 }
             }
         }
@@ -648,7 +709,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         }
 
         // Ajouter les conditions WHERE
-        if !self.conditions.is_empty() {
+        if !self.where_clauses.is_empty() {
             query_builder.push(" WHERE ");
             self.build_where_conditions(&mut query_builder);
         }
@@ -757,5 +818,160 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
                 query_builder.push_bind(value);
             }
         };
+    }
+}
+
+// ========== BUILDER POUR GROUPES ==========
+
+/// Builder spécialisé pour construire des groupes de conditions
+pub struct GroupBuilder<T: Entry> {
+    pub(crate) clauses: Vec<(WhereClause, Option<LogicalOperator>)>,
+    _phantom: std::marker::PhantomData<T>,
+}
+
+impl<T: Entry> GroupBuilder<T> {
+    pub fn new() -> Self {
+        Self {
+            clauses: Vec::new(),
+            _phantom: std::marker::PhantomData,
+        }
+    }
+
+    pub fn where_eq<V: Into<Value>>(mut self, column: &str, value: V) -> Result<Self, ApiError> {
+        self.validate_column(column)?;
+        let condition = WhereCondition {
+            column: column.to_string(),
+            operator: ComparisonOperator::Equal,
+            value: Some(value.into()),
+            values: None,
+        };
+        self.clauses.push((WhereClause::Condition(condition), None));
+        Ok(self)
+    }
+
+    pub fn where_ne<V: Into<Value>>(mut self, column: &str, value: V) -> Result<Self, ApiError> {
+        self.validate_column(column)?;
+        let condition = WhereCondition {
+            column: column.to_string(),
+            operator: ComparisonOperator::NotEqual,
+            value: Some(value.into()),
+            values: None,
+        };
+        self.clauses.push((WhereClause::Condition(condition), None));
+        Ok(self)
+    }
+
+    pub fn where_gt<V: Into<Value>>(mut self, column: &str, value: V) -> Result<Self, ApiError> {
+        self.validate_column(column)?;
+        let condition = WhereCondition {
+            column: column.to_string(),
+            operator: ComparisonOperator::GreaterThan,
+            value: Some(value.into()),
+            values: None,
+        };
+        self.clauses.push((WhereClause::Condition(condition), None));
+        Ok(self)
+    }
+
+    pub fn where_gte<V: Into<Value>>(mut self, column: &str, value: V) -> Result<Self, ApiError> {
+        self.validate_column(column)?;
+        let condition = WhereCondition {
+            column: column.to_string(),
+            operator: ComparisonOperator::GreaterThanOrEqual,
+            value: Some(value.into()),
+            values: None,
+        };
+        self.clauses.push((WhereClause::Condition(condition), None));
+        Ok(self)
+    }
+
+    pub fn where_lt<V: Into<Value>>(mut self, column: &str, value: V) -> Result<Self, ApiError> {
+        self.validate_column(column)?;
+        let condition = WhereCondition {
+            column: column.to_string(),
+            operator: ComparisonOperator::LessThan,
+            value: Some(value.into()),
+            values: None,
+        };
+        self.clauses.push((WhereClause::Condition(condition), None));
+        Ok(self)
+    }
+
+    pub fn where_in<V: Into<Value>>(
+        mut self,
+        column: &str,
+        values: Vec<V>,
+    ) -> Result<Self, ApiError> {
+        self.validate_column(column)?;
+        let values: Vec<Value> = values.into_iter().map(|v| v.into()).collect();
+        let condition = WhereCondition {
+            column: column.to_string(),
+            operator: ComparisonOperator::In,
+            value: None,
+            values: Some(values),
+        };
+        self.clauses.push((WhereClause::Condition(condition), None));
+        Ok(self)
+    }
+
+    pub fn where_like<V: Into<Value>>(
+        mut self,
+        column: &str,
+        pattern: V,
+    ) -> Result<Self, ApiError> {
+        self.validate_column(column)?;
+        let condition = WhereCondition {
+            column: column.to_string(),
+            operator: ComparisonOperator::Like,
+            value: Some(pattern.into()),
+            values: None,
+        };
+        self.clauses.push((WhereClause::Condition(condition), None));
+        Ok(self)
+    }
+
+    pub fn where_null(mut self, column: &str) -> Result<Self, ApiError> {
+        self.validate_column(column)?;
+        let condition = WhereCondition {
+            column: column.to_string(),
+            operator: ComparisonOperator::IsNull,
+            value: None,
+            values: None,
+        };
+        self.clauses.push((WhereClause::Condition(condition), None));
+        Ok(self)
+    }
+
+    pub fn where_not_null(mut self, column: &str) -> Result<Self, ApiError> {
+        self.validate_column(column)?;
+        let condition = WhereCondition {
+            column: column.to_string(),
+            operator: ComparisonOperator::IsNotNull,
+            value: None,
+            values: None,
+        };
+        self.clauses.push((WhereClause::Condition(condition), None));
+        Ok(self)
+    }
+
+    pub fn and(mut self) -> Self {
+        if let Some(last) = self.clauses.last_mut() {
+            last.1 = Some(LogicalOperator::And);
+        }
+        self
+    }
+
+    pub fn or(mut self) -> Self {
+        if let Some(last) = self.clauses.last_mut() {
+            last.1 = Some(LogicalOperator::Or);
+        }
+        self
+    }
+
+    fn validate_column(&self, column: &str) -> Result<(), ApiError> {
+        if !T::columns().contains(&column) {
+            return Err(ApiError::InvalidColumn(column.to_string()));
+        }
+        Ok(())
     }
 }
