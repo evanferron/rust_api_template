@@ -150,3 +150,20 @@ impl ResponseError for ApiError {
         }
     }
 }
+
+// Implémentation de conversions pour faciliter l'usage avec ApiError
+impl From<sqlx::Error> for ApiError {
+    fn from(err: sqlx::Error) -> Self {
+        match err {
+            sqlx::Error::RowNotFound => ApiError::NotFound("Not found".to_string()),
+            sqlx::Error::Database(db_err) => {
+                if db_err.constraint().is_some() {
+                    ApiError::Conflict("Already exists".to_string())
+                } else {
+                    ApiError::InternalServer("Database error".to_string())
+                }
+            }
+            _ => ApiError::InternalServer("Database error".to_string()),
+        }
+    }
+}

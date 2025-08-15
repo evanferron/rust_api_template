@@ -70,25 +70,6 @@ impl RepositoryTrait<User> for UserRepository {
     }
 }
 
-// Implémentation de conversions pour faciliter l'usage avec ApiError
-impl From<sqlx::Error> for ApiError {
-    fn from(err: sqlx::Error) -> Self {
-        // Adaptez cette conversion selon votre implémentation d'ApiError
-        // Par exemple :
-        match err {
-            sqlx::Error::RowNotFound => ApiError::NotFound("User not found".to_string()),
-            sqlx::Error::Database(db_err) => {
-                if db_err.constraint().is_some() {
-                    ApiError::Conflict("User already exists".to_string())
-                } else {
-                    ApiError::InternalServer("Database error".to_string())
-                }
-            }
-            _ => ApiError::InternalServer("Database error".to_string()),
-        }
-    }
-}
-
 // Implémentation passerelle pour UserRepository
 impl UserRepository {
     pub async fn find_all_users(&self) -> Result<Vec<User>, ApiError> {
