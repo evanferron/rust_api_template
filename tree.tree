@@ -1,0 +1,103 @@
+├── .env
+├── .github
+│  └── copilot-instructions.md
+├── .gitignore
+├── .idea
+│  ├── .gitignore
+│  ├── copilot.data.migration.agent.xml
+│  ├── copilot.data.migration.ask.xml
+│  ├── copilot.data.migration.ask2agent.xml
+│  ├── copilot.data.migration.edit.xml
+│  ├── material_theme_project_new.xml
+│  ├── modules.xml
+│  ├── rust_api_template.iml
+│  ├── vcs.xml
+│  └── workspace.xml
+├── .scripts
+├── .vscode
+│  └── launch.json
+├── Cargo.lock
+├── Cargo.toml
+├── docker-compose.yml
+├── docs
+│  ├── log.json
+│  ├── README_query_builder_util.md
+│  └── README_repository_trait.md
+├── migrations
+│  └── 20240530000000_create_users_table.sql
+├── README.md
+├── scripts
+│  ├── generate_feature.sh
+│  └── README.md
+├── src
+│  ├── api
+│  │  ├── auth
+│  │  │  ├── auth_controller.rs
+│  │  │  └── mod.rs
+│  │  ├── health
+│  │  │  ├── health_controller.rs
+│  │  │  └── mod.rs
+│  │  ├── mod.rs
+│  │  ├── protected
+│  │  │  ├── mod.rs
+│  │  │  └── user
+│  │  │    ├── mod.rs
+│  │  │    └── user_controller.rs
+│  │  └── swagger.rs
+│  ├── config
+│  │  ├── config.rs
+│  │  ├── mod.rs
+│  │  ├── models.rs
+│  │  └── server.rs
+│  ├── core
+│  │  ├── base
+│  │  │  ├── generic_repository
+│  │  │  │  ├── entry_trait.rs
+│  │  │  │  ├── mod.rs
+│  │  │  │  └── repository_trait.rs
+│  │  │  ├── mod.rs
+│  │  │  └── query_builder
+│  │  │    ├── mod.rs
+│  │  │    ├── query_builder.rs
+│  │  │    └── query_models.rs
+│  │  ├── errors
+│  │  │  ├── errors.rs
+│  │  │  └── mod.rs
+│  │  ├── middlewares
+│  │  │  ├── logger.rs
+│  │  │  ├── mod.rs
+│  │  │  └── rate_limiter.rs
+│  │  ├── mod.rs
+│  │  └── utils
+│  │    ├── image.rs
+│  │    └── mod.rs
+│  ├── db
+│  │  ├── connection.rs
+│  │  ├── mod.rs
+│  │  ├── models
+│  │  │  ├── mod.rs
+│  │  │  └── user.rs
+│  │  └── repositories
+│  │    ├── mod.rs
+│  │    └── user_repository.rs
+│  ├── main.rs
+│  └── modules
+│    ├── auth
+│    │  ├── auth_helpers.rs
+│    │  ├── auth_middleware.rs
+│    │  ├── auth_models.rs
+│    │  ├── auth_service.rs
+│    │  └── mod.rs
+│    ├── mod.rs
+│    └── user
+│      ├── mod.rs
+│      ├── user_models.rs
+│      └── user_service.rs
+├── tests
+│  ├── api
+│  │  └── users_api_test.rs
+│  ├── common
+│  │  └── mod.rs
+│  └── integration
+│    └── users_test.rs
+└── tree.tree

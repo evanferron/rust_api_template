@@ -7,7 +7,7 @@ use crate::core::{
 
 use super::entry_trait::Entry;
 use serde_json::Value;
-use sqlx::{Pool, Postgres};
+use sqlx::{Pool, Postgres, QueryBuilder};
 
 pub type RepositoryResult<T> = Result<T, ApiError>;
 
@@ -18,6 +18,10 @@ pub trait RepositoryTrait<T: Entry + Send + Sync + Unpin + 'static> {
     /// Creates a new QueryBuilderUtil instance for building queries.
     fn query(&self) -> QueryBuilderUtil<T> {
         QueryBuilderUtil::new()
+    }
+
+    fn build_query(&self, query:String) -> RepositoryResult<QueryBuilder<'_, Postgres>>{
+        Ok(QueryBuilder::new(query))
     }
 
     /// Fetches all records of type T from the database.
