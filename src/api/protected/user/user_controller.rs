@@ -63,7 +63,7 @@ pub async fn create_user(
     services: web::Data<Services>,
     user: web::Json<CreateUserRequest>,
 ) -> Result<impl Responder, ApiError> {
-    // Validation des données
+    // Validate input data
     if let Err(e) = user.validate() {
         return Err(ApiError::BadRequest(format!("{}", e)));
     }
@@ -95,7 +95,7 @@ pub async fn update_user(
     path: web::Path<UserIdPath>,
     req: web::Json<UpdateUserRequest>,
 ) -> Result<impl Responder, ApiError> {
-    // Validation des données
+    // Validate input data
     if let Err(e) = req.validate() {
         return Err(ApiError::BadRequest(format!("{}", e)));
     }

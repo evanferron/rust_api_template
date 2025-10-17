@@ -8,7 +8,7 @@ use crate::modules::user::user_models::{
 };
 use crate::core::errors::errors::ErrorResponse;
 
-// Configuration de l'API OpenAPI
+// OpenAPI configuration for the API
 #[derive(OpenApi)]
 #[openapi(
     paths(

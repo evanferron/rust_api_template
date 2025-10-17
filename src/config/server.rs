@@ -28,7 +28,7 @@ impl Server {
         let config = self.config.clone();
         println!("Starting server with configuration: {:#?}", config);
 
-        // Configuration de la pool de connexions à la base de données
+        // Database connection pool configuration
         let pool = PgPoolOptions::new()
             .max_connections(config.database.max_connections)
             .acquire_timeout(Duration::from_secs(config.database.acquire_timeout))
@@ -38,11 +38,11 @@ impl Server {
             .await
             .expect("Cannot connect to the database");
 
-        // Exécution des migrations
+        // Run migrations
         sqlx::migrate!("./migrations")
             .run(&pool)
             .await
-            .expect("Échec lors de l'exécution des migrations");
+            .expect("Failed to run migrations");
 
         // Initialize Logger
         tracing_subscriber::fmt()
@@ -56,28 +56,28 @@ impl Server {
             .with_line_number(false)
             .init();
 
-        // Démarrage du serveur HTTP
+        // Starting the HTTP server
         println!(
-            "Le serveur démarre sur http://{}:{} en mode {} 🚀",
+            "Server starting at http://{}:{} in {} mode 🚀",
             config.server.host, config.server.port, config.server.environment
         );
 
-        // On stock les informations de configuration dans des variables avant que la config soit moved dans le closure
+        // Store configuration values in variables before the config is moved into the closure
         let host = config.server.host.clone();
         let port = config.server.port;
 
-        // Création de repositories
+        // Create repositories
         let repositories = Arc::new(Repositories {
             user_repository: UserRepository::new(pool.clone()),
         });
 
-        // Création de services
+        // Create services
         let services = Services {
             user_service: UserService::new(Arc::clone(&repositories)),
             auth_service: AuthService::new(Arc::clone(&repositories)),
         };
 
-        // Configuration du rate limiting
+        // Rate limiting configuration
         let rate_limit_config = RateLimiterConfig {
             max_requests: 100,
             window_duration: Duration::from_secs(60),
@@ -85,8 +85,8 @@ impl Server {
         };
 
         HttpServer::new(move || {
-            // todo : ajouter les origines autorisées dynamiquement
-            // Configuration CORS
+            // todo: add allowed origins dynamically
+            // CORS configuration
             let cors = Cors::default()
                 .allowed_origin("http://localhost:3000")
                 .allowed_methods(vec!["GET", "POST", "PUT", "DELETE"])
@@ -113,6 +113,6 @@ impl Server {
         .run()
         .await
 
-        // todo : ajouter un default service pour les routes non définies
+        // todo: add a default service for undefined routes
     }
 }

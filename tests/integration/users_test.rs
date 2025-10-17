@@ -5,34 +5,34 @@ use uuid::Uuid;
 
 #[tokio::test]
 async fn test_create_and_find_user() {
-    // Configuration de la base de données de test
+    // Test database configuration
     let pool = setup_test_db().await;
 
-    // Création du repository
+    // Create the repository
     let repo = UserRepository::new(pool.clone());
 
-    // Création d'un utilisateur
+    // Create a user
     let user = User::new(
         "testuser".to_string(),
         "test@example.com".to_string(),
         "hashed_password".to_string(),
     );
 
-    // Enregistrement de l'utilisateur
+    // Save the user
     let created_user = repo.create(user).await.expect("Failed to create user");
 
-    // Recherche de l'utilisateur par ID
+    // Find the user by ID
     let found_user = repo
         .find_by_id(created_user.id)
         .await
         .expect("Failed to find user")
         .expect("User not found");
 
-    // Vérification que l'utilisateur trouvé est le même que celui créé
+    // Verify that the found user matches the created one
     assert_eq!(found_user.username, "testuser");
     assert_eq!(found_user.email, "test@example.com");
 
-    // Nettoyage
+    // Cleanup
     repo.delete(created_user.id)
         .await
         .expect("Failed to delete user");
@@ -40,36 +40,36 @@ async fn test_create_and_find_user() {
 
 #[tokio::test]
 async fn test_update_user() {
-    // Configuration de la base de données de test
+    // Test database configuration
     let pool = setup_test_db().await;
 
-    // Création du repository
+    // Create the repository
     let repo = UserRepository::new(pool.clone());
 
-    // Création d'un utilisateur
+    // Create a user
     let user = User::new(
         "updateuser".to_string(),
         "update@example.com".to_string(),
         "hashed_password".to_string(),
     );
 
-    // Enregistrement de l'utilisateur
+    // Save the user
     let created_user = repo.create(user).await.expect("Failed to create user");
 
-    // Modification de l'utilisateur
+    // Modify the user
     let mut user_to_update = created_user;
     user_to_update.username = "updated".to_string();
 
-    // Mise à jour de l'utilisateur
+    // Update the user
     let updated_user = repo
         .update(user_to_update)
         .await
         .expect("Failed to update user");
 
-    // Vérification que l'utilisateur a bien été mis à jour
+    // Verify the user was updated
     assert_eq!(updated_user.username, "updated");
 
-    // Nettoyage
+    // Cleanup
     repo.delete(updated_user.id)
         .await
         .expect("Failed to delete user");
@@ -77,30 +77,30 @@ async fn test_update_user() {
 
 #[tokio::test]
 async fn test_delete_user() {
-    // Configuration de la base de données de test
+    // Test database configuration
     let pool = setup_test_db().await;
 
-    // Création du repository
+    // Create the repository
     let repo = UserRepository::new(pool.clone());
 
-    // Création d'un utilisateur
+    // Create a user
     let user = User::new(
         "deleteuser".to_string(),
         "delete@example.com".to_string(),
         "hashed_password".to_string(),
     );
 
-    // Enregistrement de l'utilisateur
+    // Save the user
     let created_user = repo.create(user).await.expect("Failed to create user");
 
-    // Suppression de l'utilisateur
+    // Delete the user
     let deleted = repo
         .delete(created_user.id)
         .await
         .expect("Failed to delete user");
     assert!(deleted);
 
-    // Vérification que l'utilisateur a bien été supprimé
+    // Verify the user was deleted
     let not_found = repo
         .find_by_id(created_user.id)
         .await
@@ -110,33 +110,33 @@ async fn test_delete_user() {
 
 #[tokio::test]
 async fn test_find_by_email() {
-    // Configuration de la base de données de test
+    // Test database configuration
     let pool = setup_test_db().await;
 
-    // Création du repository
+    // Create the repository
     let repo = UserRepository::new(pool.clone());
 
-    // Création d'un utilisateur
+    // Create a user
     let user = User::new(
         "emailuser".to_string(),
         "unique@example.com".to_string(),
         "hashed_password".to_string(),
     );
 
-    // Enregistrement de l'utilisateur
+    // Save the user
     let created_user = repo.create(user).await.expect("Failed to create user");
 
-    // Recherche de l'utilisateur par email
+    // Find the user by email
     let found_user = repo
         .find_by_email("unique@example.com")
         .await
         .expect("Failed to find user by email")
         .expect("User not found by email");
 
-    // Vérification que l'utilisateur trouvé est le même que celui créé
+    // Verify the found user matches the created one
     assert_eq!(found_user.id, created_user.id);
 
-    // Nettoyage
+    // Cleanup
     repo.delete(created_user.id)
         .await
         .expect("Failed to delete user");

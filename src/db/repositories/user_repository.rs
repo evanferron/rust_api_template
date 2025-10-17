@@ -53,14 +53,14 @@ impl UserRepository {
     }
 }
 
-// Implémentation du trait RepositoryTrait pour UserRepository
+// Implementation of the RepositoryTrait for UserRepository
 impl RepositoryTrait<User> for UserRepository {
     fn get_pool(&self) -> &Pool<Postgres> {
         &self.pool
     }
 
-    // Vous pouvez override les méthodes du trait si nécessaire
-    // Par exemple, pour personnaliser find_all avec un tri spécifique :
+    // You can override trait methods if needed
+    // For example, to customize find_all with a specific ordering:
     async fn find_all(&self) -> Result<Vec<User>, ApiError> {
         let users = sqlx::query_as::<_, User>("SELECT * FROM users ORDER BY created_at DESC")
             .fetch_all(&self.pool)
@@ -70,7 +70,7 @@ impl RepositoryTrait<User> for UserRepository {
     }
 }
 
-// Implémentation passerelle pour UserRepository
+// Facade implementation for UserRepository
 impl UserRepository {
     pub async fn find_all_users(&self) -> Result<Vec<User>, ApiError> {
         self.find_all().await

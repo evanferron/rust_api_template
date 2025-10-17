@@ -75,7 +75,7 @@ pub struct WhereCondition {
     pub column: String,
     pub operator: ComparisonOperator,
     pub value: Option<Value>,
-    pub values: Option<Vec<Value>>, // Pour IN, NOT IN, BETWEEN
+    pub values: Option<Vec<Value>>, // For IN, NOT IN, BETWEEN
 }
 
 #[derive(Debug, Clone)]
@@ -87,7 +87,7 @@ pub enum WhereClause {
 #[derive(Debug, Clone)]
 pub struct WhereGroup {
     pub clauses: Vec<(WhereClause, Option<LogicalOperator>)>,
-    pub operator: LogicalOperator, // Opérateur pour joindre ce groupe avec d'autres
+    pub operator: LogicalOperator, // Operator to join this group with others
 }
 
 #[derive(Debug, Clone)]

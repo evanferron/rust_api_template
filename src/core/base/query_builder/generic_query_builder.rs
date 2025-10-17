@@ -1,7 +1,8 @@
 use sqlx::{Database, Pool, FromRow};
 use std::marker::PhantomData;
+use crate::core::base::query_builder::parameterizedQuery::ParameterizedQuery;
 
-// Enum pour gérer les différences entre DB
+// Enum to handle differences between DBs
 #[derive(Clone, Copy, Debug)]
 pub enum DbType {
     Postgres,
@@ -10,7 +11,7 @@ pub enum DbType {
 }
 
 impl DbType {
-    // Gère les placeholders ($1, $2 vs ?, ?)
+    // Handle placeholders ($1, $2 vs ?, ?)
     pub fn placeholder(&self, index: usize) -> String {
         match self {
             Self::Postgres => format!("${}", index),
@@ -19,7 +20,7 @@ impl DbType {
     }
 }
 
-// QueryBuilder simple pour SQL brut
+// Simple QueryBuilder for raw SQL
 pub struct QueryBuilder<DB: Database> {
     db_type: DbType,
     pool: Pool<DB>,
@@ -32,7 +33,7 @@ impl<DB> QueryBuilder<DB>
 where
     DB: Database,
     for<'q> <DB as Database>::Arguments<'q>: sqlx::IntoArguments<'q, DB>,
-    for<'c> &'c mut <DB as Database>::Connection: sqlx::Executor<'c,Database = DB>,
+    for<'c> &'c mut <DB as Database>::Connection: sqlx::Executor<'c, Database = DB>,
 {
     pub fn new(pool: Pool<DB>, db_type: DbType) -> Self {
         Self {
@@ -44,13 +45,13 @@ where
         }
     }
 
-    // Définit le SQL complet
+    // Set the full SQL
     pub fn sql(mut self, sql: impl Into<String>) -> Self {
         self.sql = sql.into();
         self
     }
 
-    // Ajoute du SQL à la suite
+    // Append SQL
     pub fn append(mut self, sql: &str) -> Self {
         if !self.sql.is_empty() && !self.sql.ends_with(' ') {
             self.sql.push(' ');
@@ -59,46 +60,46 @@ where
         self
     }
 
-    // Retourne le placeholder suivant et incrémente le compteur
+    // Return the next placeholder and increment the counter
     pub fn placeholder(&mut self) -> String {
         self.param_count += 1;
         self.db_type.placeholder(self.param_count)
     }
 
-    // Récupère le SQL généré
+    // Get the generated SQL
     pub fn get_sql(&self) -> &str {
         &self.sql
     }
 
-    // Récupère le nombre de paramètres
+    // Get the parameter count
     pub fn param_count(&self) -> usize {
         self.param_count
     }
 
-    // Récupère une référence au pool
+    // Get a reference to the pool
     pub fn pool(&self) -> &Pool<DB> {
         &self.pool
     }
 
-    // Clone le pool
+    // Clone the pool
     pub fn pool_clone(&self) -> Pool<DB> {
         self.pool.clone()
     }
 
-    // Décompose le builder en SQL et Pool
+    // Decompose the builder into SQL and Pool
     pub fn build(self) -> (String, Pool<DB>) {
         (self.sql, self.pool)
     }
 
-    // Helper: exécute une requête simple sans paramètres
+    // Helper: execute a simple query without parameters
+    // Returns the raw QueryResult; the caller can call .rows_affected() on it
     pub async fn execute_simple(self) -> Result<DB::QueryResult, sqlx::Error> {
-        let result = sqlx::query(&self.sql)
+        sqlx::query(&self.sql)
             .execute(&self.pool)
-            .await?;
-        Ok(result)
+            .await
     }
 
-    // Helper: fetch_all sans paramètres
+    // Helper: fetch_all without parameters
     pub async fn fetch_all_simple<T>(self) -> Result<Vec<T>, sqlx::Error>
     where
         T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
@@ -109,7 +110,7 @@ where
         Ok(result)
     }
 
-    // Helper: fetch_one sans paramètres
+    // Helper: fetch_one without parameters
     pub async fn fetch_one_simple<T>(self) -> Result<T, sqlx::Error>
     where
         T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
@@ -120,7 +121,7 @@ where
         Ok(result)
     }
 
-    // Helper: fetch_optional sans paramètres
+    // Helper: fetch_optional without parameters
     pub async fn fetch_optional_simple<T>(self) -> Result<Option<T>, sqlx::Error>
     where
         T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
@@ -129,6 +130,11 @@ where
             .fetch_optional(&self.pool)
             .await?;
         Ok(result)
+    }
+
+    // Create a BoundQuery to bind parameters fluently
+    pub fn prepare(&self) -> ParameterizedQuery<'_, DB> {
+        ParameterizedQuery::new(&self.sql, &self.pool)
     }
 }
 
@@ -142,7 +148,7 @@ pub type MySqlQueryBuilder = QueryBuilder<sqlx::MySql>;
 #[cfg(feature = "sqlite")]
 pub type SqliteQueryBuilder = QueryBuilder<sqlx::Sqlite>;
 
-// Helpers pour créer les builders
+// Helpers to create builders
 #[cfg(feature = "postgres")]
 pub async fn create_pg_builder(database_url: &str) -> Result<PgQueryBuilder, sqlx::Error> {
     let pool = sqlx::postgres::PgPool::connect(database_url).await?;

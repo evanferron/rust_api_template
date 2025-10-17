@@ -151,7 +151,7 @@ impl ResponseError for ApiError {
     }
 }
 
-// Implémentation de conversions pour faciliter l'usage avec ApiError
+// Implementation of conversions to ease usage with ApiError
 impl From<sqlx::Error> for ApiError {
     fn from(err: sqlx::Error) -> Self {
         match err {

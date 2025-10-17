@@ -36,7 +36,7 @@ impl UserService {
     }
 
     pub async fn create_user(&self, user: CreateUserRequest) -> Result<User, ApiError> {
-        // Vérification si l'email existe déjà
+        // Check if the email already exists
         if let Some(_) = self
             .repositories
             .user_repository
@@ -49,13 +49,13 @@ impl UserService {
             )));
         }
 
-        // Hashage du mot de passe
+        // Password hashing
         let password_hash = hash_password(&user.password)?;
 
-        // Création de l'utilisateur
+        // Create the user
         let user = User::new(user.username, user.email, password_hash);
 
-        // Enregistrement de l'utilisateur
+        // Persist the user
         self.repositories.user_repository.create_user(user).await
     }
 
@@ -66,16 +66,16 @@ impl UserService {
         email: Option<String>,
         password: Option<String>,
     ) -> Result<User, ApiError> {
-        // Récupération de l'utilisateur existant
+        // Retrieve the existing user
         let mut user = self.get_user_by_id(id).await?;
 
-        // Mise à jour des champs si fournis
+        // Update fields if provided
         if let Some(new_username) = username {
             user.username = new_username;
         }
 
         if let Some(new_email) = email {
-            // Vérifier si le nouvel email est déjà utilisé par un autre utilisateur
+            // Check if the new email is already used by another user
             if new_email != user.email {
                 if let Some(existing) = self
                     .repositories
@@ -98,7 +98,7 @@ impl UserService {
             user.password_hash = hash_password(&new_password)?;
         }
 
-        // Mise à jour de l'utilisateur
+        // Update the user
         self.repositories
             .user_repository
             .update_user(id, user)
@@ -106,15 +106,15 @@ impl UserService {
     }
 
     pub async fn delete_user(&self, id: Uuid) -> Result<bool, ApiError> {
-        // Vérification si l'utilisateur existe
+        // Check if the user exists
         self.get_user_by_id(id).await?;
 
-        // Suppression de l'utilisateur
+        // Delete the user
         self.repositories.user_repository.delete_user(id).await
     }
 }
 
-// Fonctions utilitaires pour la gestion des mots de passe
+// Utility functions for password handling
 fn hash_password(password: &str) -> Result<String, ApiError> {
     hash(password, DEFAULT_COST)
         .map_err(|e| ApiError::InternalServer(format!("Échec du hashage du mot de passe: {}", e)))

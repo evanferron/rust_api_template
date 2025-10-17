@@ -13,25 +13,25 @@ use std::sync::{Arc, Mutex};
 
 use crate::core::errors::errors::ApiError;
 
-// Structure pour stocker les informations de rate limiting par IP
+// Structure to store rate limiting info per IP
 #[derive(Debug, Clone)]
 struct RateLimitInfo {
     count: u32,
     window_start: Instant,
 }
 
-// Store global pour le rate limiting (en production, utilisez Redis)
+// Global store for rate limiting (in production, use Redis)
 lazy_static::lazy_static! {
     static ref RATE_LIMIT_STORE: Arc<Mutex<HashMap<String, RateLimitInfo>>> =
         Arc::new(Mutex::new(HashMap::new()));
 }
 
-// Configuration du rate limiter
+// Rate limiter configuration
 #[derive(Clone, Debug)]
 pub struct RateLimiterConfig {
     pub max_requests: u32,
     pub window_duration: Duration,
-    pub identifier_header: Option<String>, // Header personnalisé pour identifier l'utilisateur
+    pub identifier_header: Option<String>, // Custom header to identify the user
 }
 
 impl Default for RateLimiterConfig {
@@ -44,9 +44,9 @@ impl Default for RateLimiterConfig {
     }
 }
 
-// Fonction pour extraire l'identifiant du client
+// Function to extract the client identifier
 fn get_client_identifier(req: &ServiceRequest, config: &RateLimiterConfig) -> String {
-    // Si un header personnalisé est défini, l'utiliser en priorité
+    // If a custom header is defined, use it first
     if let Some(header_name) = &config.identifier_header {
         if let Some(header_value) = req.headers().get(header_name) {
             if let Ok(value) = header_value.to_str() {
@@ -55,7 +55,7 @@ fn get_client_identifier(req: &ServiceRequest, config: &RateLimiterConfig) -> St
         }
     }
 
-    // Sinon, utiliser l'IP
+    // Otherwise, use the IP
     let remote_addr = req
         .connection_info()
         .peer_addr()
@@ -65,7 +65,7 @@ fn get_client_identifier(req: &ServiceRequest, config: &RateLimiterConfig) -> St
     format!("ip:{}", remote_addr)
 }
 
-// Middleware de rate limiting
+// Rate limiting middleware
 pub async fn rate_limiter_middleware(
     req: ServiceRequest,
     next: Next<impl MessageBody>,
@@ -81,15 +81,15 @@ pub async fn rate_limiter_middleware(
     let should_allow = {
         let mut store = RATE_LIMIT_STORE.lock().unwrap();
 
-        // Nettoyer les entrées expirées périodiquement
+        // Clean up expired entries periodically
         if store.len() > 1000 {
-            // Nettoyage quand le store devient trop grand
+            // Purge when the store becomes too large
             store.retain(|_, info| now.duration_since(info.window_start) < config.window_duration);
         }
 
         match store.get_mut(&client_id) {
             Some(info) => {
-                // Vérifier si la fenêtre a expiré
+                // Check if the window has expired
                 if now.duration_since(info.window_start) >= config.window_duration {
                     info.count = 1;
                     info.window_start = now;

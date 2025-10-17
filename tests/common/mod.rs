@@ -13,7 +13,7 @@ pub async fn setup_test_db() -> PgPool {
 
     let database_url = std::env::var("DATABASE_URL")
         .expect("DATABASE_URL must be set for tests")
-        .replace("apidb", "apidb_test"); // Utiliser une base de données distincte pour les tests
+        .replace("apidb", "apidb_test"); // Use a separate database for tests
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -22,7 +22,7 @@ pub async fn setup_test_db() -> PgPool {
         .await
         .expect("Failed to connect to test database");
 
-    // Exécuter les migrations pour la base de données de test
+    // Run migrations for the test database
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await

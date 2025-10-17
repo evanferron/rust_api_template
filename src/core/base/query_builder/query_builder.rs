@@ -47,7 +47,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         }
     }
 
-    // Méthodes pour construire les conditions WHERE
+    // Methods to build WHERE conditions
     pub fn where_eq<V: Into<Value>>(mut self, column: &str, value: V) -> Result<Self, ApiError> {
         self.validate_column(column)?;
         let condition = WhereCondition {
@@ -240,7 +240,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         Ok(self)
     }
 
-    // Opérateurs logiques
+    // Logical operators
     pub fn and(mut self) -> Self {
         if let Some(last) = self.where_clauses.last_mut() {
             last.1 = Some(LogicalOperator::And);
@@ -255,11 +255,11 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         self
     }
 
-    // ========== GROUPES DE CONDITIONS ==========
+    // ========== CONDITION GROUPS ==========
 
-    /// Crée un groupe de conditions avec AND
-    /// Exemple: where_group_and(|group| group.where_eq("status", "active").or().where_eq("priority", "high"))
-    /// Résultat: WHERE (status = 'active' OR priority = 'high') AND ...
+    /// Creates a group of conditions with AND
+    /// Example: where_group_and(|group| group.where_eq("status", "active").or().where_eq("priority", "high"))
+    /// Result: WHERE (status = 'active' OR priority = 'high') AND ...
     pub fn where_group_and<F>(mut self, builder_fn: F) -> Result<Self, ApiError>
     where
         F: FnOnce(GroupBuilder<T>) -> Result<GroupBuilder<T>, ApiError>,
@@ -279,9 +279,9 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         Ok(self)
     }
 
-    /// Crée un groupe de conditions avec OR
-    /// Exemple: where_group_or(|group| group.where_eq("status", "draft").and().where_eq("author_id", user_id))
-    /// Résultat: WHERE (status = 'draft' AND author_id = 123) OR ...
+    /// Creates a group of conditions with OR
+    /// Example: where_group_or(|group| group.where_eq("status", "draft").and().where_eq("author_id", user_id))
+    /// Result: WHERE (status = 'draft' AND author_id = 123) OR ...
     pub fn where_group_or<F>(mut self, builder_fn: F) -> Result<Self, ApiError>
     where
         F: FnOnce(GroupBuilder<T>) -> Result<GroupBuilder<T>, ApiError>,
@@ -301,7 +301,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         Ok(self)
     }
 
-    // Méthodes pour ORDER BY
+    // Methods for ORDER BY
     pub fn order_by(mut self, column: &str, direction: OrderDirection) -> Result<Self, ApiError> {
         self.validate_column(column)?;
         self.order_by.push(OrderBy {
@@ -319,7 +319,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         self.order_by(column, OrderDirection::Desc)
     }
 
-    // Methods pour LIMIT et OFFSET
+    // Methods for LIMIT and OFFSET
     pub fn limit(mut self, limit: u32) -> Self {
         self.limit = Some(limit);
         self
@@ -337,7 +337,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         self
     }
 
-    // Methods pour JOIN
+    // Methods for JOIN
     pub fn inner_join(mut self, table: &str, on_condition: &str) -> Self {
         self.joins.push(JoinClause {
             join_type: JoinType::Inner,
@@ -374,14 +374,14 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         self
     }
 
-    // Méthodes pour GROUP BY et HAVING
+    // Methods for GROUP BY and HAVING
     pub fn group_by(mut self, column: &str) -> Result<Self, ApiError> {
         self.validate_column(column)?;
         self.group_by.push(column.to_string());
         Ok(self)
     }
 
-    // Méthodes pour DISTINCT et SELECT
+    // Methods for DISTINCT and SELECT
     pub fn distinct(mut self) -> Self {
         self.distinct = true;
         self
@@ -395,7 +395,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         Ok(self)
     }
 
-    // Méthodes pour UPDATE
+    // Methods for UPDATE
     pub fn set<V: Into<Value>>(mut self, column: &str, value: V) -> Result<Self, ApiError> {
         self.validate_column(column)?;
         self.update_data.insert(column.to_string(), value.into());
@@ -410,7 +410,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         Ok(self)
     }
 
-    // Méthodes pour INSERT
+    // Methods for INSERT
     pub fn value<V: Into<Value>>(mut self, column: &str, value: V) -> Result<Self, ApiError> {
         self.validate_column(column)?;
         self.insert_data.insert(column.to_string(), value.into());
@@ -425,7 +425,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         Ok(self)
     }
 
-    // Validation des colonnes
+    // Column validation
     fn validate_column(&self, column: &str) -> Result<(), ApiError> {
         if !T::columns().contains(&column) {
             return Err(ApiError::InvalidColumn(column.to_string()));
@@ -433,7 +433,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         Ok(())
     }
 
-    // Construction de la requête SELECT
+    // Build SELECT query
     pub fn build_select_query(&self) -> QueryBuilder<'_, Postgres> {
         let mut query_builder = QueryBuilder::new("SELECT ");
 
@@ -441,7 +441,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
             query_builder.push("DISTINCT ");
         }
 
-        // Colonnes à sélectionner
+        // Columns to select
         let columns: Vec<String> = match &self.select_columns {
             Some(cols) => cols.clone(),
             None => T::columns().iter().map(|s| s.to_string()).collect(),
@@ -451,7 +451,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         query_builder.push(" FROM ");
         query_builder.push(T::table_name());
 
-        // Ajouter les JOINs
+        // Add JOINs
         for join in &self.joins {
             query_builder.push(" ");
             query_builder.push(join.join_type.to_sql());
@@ -461,19 +461,19 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
             query_builder.push(&join.on_condition);
         }
 
-        // Ajouter les conditions WHERE
+        // Add WHERE conditions
         if !self.where_clauses.is_empty() {
             query_builder.push(" WHERE ");
             self.build_where_conditions(&mut query_builder);
         }
 
-        // Ajouter GROUP BY
+        // Add GROUP BY
         if !self.group_by.is_empty() {
             query_builder.push(" GROUP BY ");
             query_builder.push(self.group_by.join(", "));
         }
 
-        // Ajouter ORDER BY
+        // Add ORDER BY
         if !self.order_by.is_empty() {
             query_builder.push(" ORDER BY ");
             for (i, order) in self.order_by.iter().enumerate() {
@@ -486,13 +486,13 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
             }
         }
 
-        // Ajouter LIMIT
+        // Add LIMIT
         if let Some(limit) = self.limit {
             query_builder.push(" LIMIT ");
             query_builder.push(limit.to_string());
         }
 
-        // Ajouter OFFSET
+        // Add OFFSET
         if let Some(offset) = self.offset {
             query_builder.push(" OFFSET ");
             query_builder.push(offset.to_string());
@@ -500,7 +500,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         query_builder
     }
 
-    // Construction de la requête UPDATE
+    // Build UPDATE query
     pub fn build_update_query(&self) -> Result<QueryBuilder<'_, Postgres>, ApiError> {
         if self.update_data.is_empty() {
             return Err(ApiError::InvalidQuery(
@@ -523,7 +523,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
             first = false;
         }
 
-        // Ajouter les conditions WHERE
+        // Add WHERE conditions
         if !self.where_clauses.is_empty() {
             query_builder.push(" WHERE ");
             self.build_where_conditions(&mut query_builder);
@@ -532,7 +532,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         Ok(query_builder)
     }
 
-    // Construction de la requête INSERT
+    // Build INSERT query
     pub fn build_insert_query(&self) -> Result<QueryBuilder<'_, Postgres>, ApiError> {
         if self.insert_data.is_empty() {
             return Err(ApiError::InvalidQuery(
@@ -565,12 +565,12 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         Ok(query_builder)
     }
 
-    // Construction de la requête DELETE
+    // Build DELETE query
     pub fn build_delete_query(&self) -> QueryBuilder<'_, Postgres> {
         let mut query_builder = QueryBuilder::new("DELETE FROM ");
         query_builder.push(T::table_name());
 
-        // Ajouter les conditions WHERE
+        // Add WHERE conditions
         if !self.where_clauses.is_empty() {
             query_builder.push(" WHERE ");
             self.build_where_conditions(&mut query_builder);
@@ -589,13 +589,13 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         query_builder: &mut QueryBuilder<'_, Postgres>,
     ) {
         for (i, (clause, logical_op)) in clauses.iter().enumerate() {
-            // Ajouter l'opérateur logique si ce n'est pas la première condition
+            // Add the logical operator if it's not the first condition
             if i > 0 {
                 query_builder.push(" ");
                 if let Some(op) = logical_op {
                     query_builder.push(op.to_sql());
                 } else {
-                    query_builder.push("AND"); // Par défaut
+                    query_builder.push("AND"); // By default
                 }
                 query_builder.push(" ");
             }
@@ -624,7 +624,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
 
         match &condition.operator {
             ComparisonOperator::IsNull | ComparisonOperator::IsNotNull => {
-                // Pas de valeur pour ces opérateurs
+                // No value for these operators
             }
             ComparisonOperator::In | ComparisonOperator::NotIn => {
                 if let Some(values) = &condition.values {
@@ -657,7 +657,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         }
     }
 
-    // Méthodes d'exécution pour SELECT
+    // Execution methods for SELECT
     pub async fn fetch_all(&self, pool: &Pool<Postgres>) -> QueryResult<Vec<T>> {
         let items = self
             .build_select_query()
@@ -698,7 +698,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         let mut query_builder = QueryBuilder::new("SELECT COUNT(*) FROM ");
         query_builder.push(T::table_name());
 
-        // Ajouter les JOINs
+        // Add JOINs
         for join in &self.joins {
             query_builder.push(" ");
             query_builder.push(join.join_type.to_sql());
@@ -708,7 +708,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
             query_builder.push(&join.on_condition);
         }
 
-        // Ajouter les conditions WHERE
+        // Add WHERE conditions
         if !self.where_clauses.is_empty() {
             query_builder.push(" WHERE ");
             self.build_where_conditions(&mut query_builder);
@@ -723,7 +723,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         Ok(count.0)
     }
 
-    // Méthodes d'exécution pour UPDATE
+    // Execution methods for UPDATE
     pub async fn update(&self, pool: &Pool<Postgres>) -> QueryResult<u64> {
         let mut query = self.build_update_query()?;
         let result = query
@@ -748,7 +748,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         Ok(items)
     }
 
-    // Méthodes d'exécution pour INSERT
+    // Execution methods for INSERT
     pub async fn insert(&self, pool: &Pool<Postgres>) -> QueryResult<u64> {
         let mut query = self.build_insert_query()?;
         let result = query
@@ -776,7 +776,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         Ok(item)
     }
 
-    // Méthodes d'exécution pour DELETE
+    // Execution methods for DELETE
     pub async fn delete(&self, pool: &Pool<Postgres>) -> QueryResult<u64> {
         let mut query = self.build_delete_query();
         let result = query
@@ -823,7 +823,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
 
 // ========== BUILDER POUR GROUPES ==========
 
-/// Builder spécialisé pour construire des groupes de conditions
+/// Specialized builder to construct groups of conditions
 pub struct GroupBuilder<T: Entry> {
     pub(crate) clauses: Vec<(WhereClause, Option<LogicalOperator>)>,
     _phantom: std::marker::PhantomData<T>,
