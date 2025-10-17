@@ -319,7 +319,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         self.order_by(column, OrderDirection::Desc)
     }
 
-    // Méthodes pour LIMIT et OFFSET
+    // Methods pour LIMIT et OFFSET
     pub fn limit(mut self, limit: u32) -> Self {
         self.limit = Some(limit);
         self
@@ -337,7 +337,7 @@ impl<T: Entry + Send + Sync + Unpin + 'static> QueryBuilderUtil<T> {
         self
     }
 
-    // Méthodes pour JOIN
+    // Methods pour JOIN
     pub fn inner_join(mut self, table: &str, on_condition: &str) -> Self {
         self.joins.push(JoinClause {
             join_type: JoinType::Inner,
