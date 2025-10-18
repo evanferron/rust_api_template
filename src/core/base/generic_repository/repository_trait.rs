@@ -2,14 +2,16 @@ use crate::core::{
     base::query_builder::{generic_query_builder::QueryBuilder, query_models::OrderDirection},
     errors::errors::ApiError,
 };
-use std::collections::HashMap;
 
 use super::entry_trait::{BindValue, Entry};
-use crate::core::base::generic_repository::repository_utils::{bind_entry_to_query, bind_value_to_query, execute_transaction};
+use crate::core::base::generic_repository::repository_utils::{
+    bind_entry_to_query, bind_value_to_query, execute_transaction,
+};
 use chrono::Utc;
 use serde_json::Value;
 use sqlx::types::JsonValue;
 use sqlx::{Database, Pool, Transaction};
+use crate::core::base::extension::query_result_extension::QueryResultExt;
 
 pub type RepositoryResult<T> = Result<T, ApiError>;
 
@@ -17,6 +19,7 @@ pub trait RepositoryTrait<T, DB>
 where
     T: Entry<DB> + Send + Sync + Unpin + 'static + for<'r> sqlx::FromRow<'r, <DB as Database>::Row>,
     DB: Database,
+    DB::QueryResult: QueryResultExt,
     for<'a> <DB as Database>::Arguments<'a>: sqlx::IntoArguments<'a, DB>,
     for<'a> &'a mut <DB as Database>::Connection: sqlx::Executor<'a, Database = DB>,
     for<'a> bool: sqlx::Encode<'a, DB> + sqlx::Type<DB>,
@@ -182,8 +185,9 @@ where
 
     async fn create_many<'tx>(&self, entries: Vec<T>) -> RepositoryResult<Vec<T>>
     where
-            for<'c> &'c mut Transaction<'tx, DB>: sqlx::Executor<'c, Database = DB>,
-            for<'c> &'c mut Transaction<'c, DB>: sqlx::Executor<'c, Database = DB>, Self: Sync
+        for<'c> &'c mut Transaction<'tx, DB>: sqlx::Executor<'c, Database = DB>,
+        for<'c> &'c mut Transaction<'c, DB>: sqlx::Executor<'c, Database = DB>,
+        Self: Sync,
     {
         if entries.is_empty() {
             return Ok(vec![]);
@@ -223,7 +227,7 @@ where
 
             Ok(created_entries)
         })
-            .await
+        .await
     }
 
     /// Updates a record by its id with the provided entry data.
@@ -261,9 +265,7 @@ where
         values: Vec<BindValue>,
     ) -> RepositoryResult<T> {
         if columns.is_empty() || values.is_empty() || columns.len() != values.len() {
-            return Err(ApiError::BadRequest(
-                "Empty columns or values".to_string(),
-            ));
+            return Err(ApiError::BadRequest("Empty columns or values".to_string()));
         }
 
         let mut qb = self.query();
@@ -280,41 +282,56 @@ where
         );
         let mut executor = qb.set_sql(&sql).prepare();
         for value in values.iter() {
-            executor = bind_value_to_query(executor,value);
+            executor = bind_value_to_query(executor, value);
         }
         executor = executor.bind(id);
         executor.fetch_one(self.get_pool()).await
-
     }
 
     /// Deletes a record by its id. Returns true if a record was deleted.
     async fn delete(&self, id: T::Id) -> RepositoryResult<bool> {
-        let rows_affected = self
-            .query()
-            .where_eq(
-                "id",
-                serde_json::to_value(id).map_err(|e| ApiError::Serialization(e))?,
-            )?
-            .delete(self.get_pool())
-            .await?;
+        let mut qb = self.query();
 
-        Ok(rows_affected > 0)
+        let sql = format!(
+            "DELETE FROM {} WHERE id = {}",
+            T::table_name(),
+            qb.placeholder()
+        );
+        qb.set_sql(&sql)
+            .prepare()
+            .bind(id)
+            .execute(self.get_pool())
+            .await?;
+        Ok(true)
     }
 
     /// Deletes multiple records by their ids. Returns the number of records deleted.
     async fn delete_many(&self, ids: &[T::Id]) -> RepositoryResult<u64> {
+
         if ids.is_empty() {
             return Ok(0);
         }
 
-        let id_values: Result<Vec<Value>, _> =
-            ids.iter().map(|id| serde_json::to_value(id)).collect();
-        let id_values = id_values.map_err(|e| ApiError::Serialization(e))?;
+        let mut qb = self.query();
+        let placeholders = ids
+            .iter()
+            .map(|_| qb.placeholder())
+            .collect::<Vec<String>>()
+            .join(", ");
 
-        self.query()
-            .where_in("id", id_values)?
-            .delete(self.get_pool())
-            .await
+        let sql = format!(
+            "DELETE FROM {} WHERE id IN ({})",
+            T::table_name(),
+            placeholders
+        );
+
+        let mut executor = qb.set_sql(&sql).prepare();
+        for id in ids.iter() {
+            executor = executor.bind(*id);
+        }
+
+        let result = executor.execute(self.get_pool()).await?;
+        Ok(result.rows_affected())
     }
 
     /// Checks if a record exists by its id.
