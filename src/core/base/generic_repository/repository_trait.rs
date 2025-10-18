@@ -1,5 +1,5 @@
 use crate::core::{
-    base::query_builder::{generic_query_builder::QueryBuilder, query_models::OrderDirection},
+    base::query_builder::{query_builder::QueryBuilder},
     errors::errors::ApiError,
 };
 
@@ -336,155 +336,25 @@ where
 
     /// Checks if a record exists by its id.
     async fn exists(&self, id: T::Id) -> RepositoryResult<bool> {
-        let count = self
-            .query()
-            .where_eq(
-                "id",
-                serde_json::to_value(id).map_err(|e| ApiError::Serialization(e))?,
-            )?
-            .limit(1)
-            .count(self.get_pool())
+        let mut qb = self.query();
+
+        let sql = format!(
+            "SELECT EXISTS(SELECT 1 FROM {} WHERE id = {}) as exists",
+            T::table_name(),
+            qb.placeholder()
+        );
+
+        let row = qb
+            .set_sql(&sql)
+            .prepare()
+            .bind(id)
+            .fetch_one(self.get_pool())
             .await?;
 
-        Ok(count > 0)
-    }
+        let exists: bool = row
+            .get("exists")
+            .ok_or_else(|| ApiError::InternalServer("Cannot determine existence".to_string()))?;
 
-    /// Fetches records using a custom QueryBuilderUtil instance.
-    async fn find_with_query(&self, query: QueryBuilderUtil<T>) -> RepositoryResult<Vec<T>> {
-        query.fetch_all(self.get_pool()).await
-    }
-
-    /// Counts records using a custom QueryBuilderUtil instance.
-    async fn count_with_query(&self, query: QueryBuilderUtil<T>) -> RepositoryResult<i64> {
-        query.count(self.get_pool()).await
-    }
-
-    /// Fetches an optional record using a custom QueryBuilderUtil instance.
-    async fn find_one_with_query(&self, query: QueryBuilderUtil<T>) -> RepositoryResult<Option<T>> {
-        query.fetch_optional(self.get_pool()).await
-    }
-
-    /// Fetches a required record using a custom QueryBuilderUtil instance.
-    async fn find_one_required_with_query(
-        &self,
-        query: QueryBuilderUtil<T>,
-    ) -> RepositoryResult<T> {
-        query.fetch_one(self.get_pool()).await
-    }
-
-    /// Deletes records using a custom QueryBuilderUtil instance.
-    async fn delete_by_query(&self, query: QueryBuilderUtil<T>) -> RepositoryResult<u64> {
-        query.delete(self.get_pool()).await
-    }
-
-    /// Finds records with advanced options: conditions, ordering, limit, and offset.
-    async fn find_advanced(
-        &self,
-        conditions: &[(&str, Value)],
-        order_by: Option<(&str, OrderDirection)>,
-        limit: Option<u32>,
-        offset: Option<u32>,
-    ) -> RepositoryResult<Vec<T>> {
-        let mut query = self.query();
-
-        for (i, (column, value)) in conditions.iter().enumerate() {
-            query = query.where_eq(column, value.clone())?;
-            if i < conditions.len() - 1 {
-                query = query.and();
-            }
-        }
-
-        if let Some((column, direction)) = order_by {
-            query = query.order_by(column, direction)?;
-        }
-
-        if let Some(l) = limit {
-            query = query.limit(l);
-        }
-
-        if let Some(o) = offset {
-            query = query.offset(o);
-        }
-
-        query.fetch_all(self.get_pool()).await
-    }
-
-    /// Searches for records where a column matches a pattern (LIKE/ILIKE).
-    async fn search_by_pattern(
-        &self,
-        column: &str,
-        pattern: &str,
-        case_sensitive: bool,
-        limit: Option<u32>,
-    ) -> RepositoryResult<Vec<T>> {
-        let search_pattern = format!("%{}%", pattern);
-        let mut query = self.query();
-
-        query = if case_sensitive {
-            query.where_like(column, search_pattern)?
-        } else {
-            query.where_ilike(column, search_pattern)?
-        };
-
-        if let Some(l) = limit {
-            query = query.limit(l);
-        }
-
-        query.fetch_all(self.get_pool()).await
-    }
-
-    /// Finds records where a column value is within a specified range.
-    async fn find_by_range<V>(&self, column: &str, start: V, end: V) -> RepositoryResult<Vec<T>>
-    where
-        V: serde::Serialize,
-    {
-        let start_value = serde_json::to_value(start).map_err(|e| ApiError::Serialization(e))?;
-        let end_value = serde_json::to_value(end).map_err(|e| ApiError::Serialization(e))?;
-
-        self.query()
-            .where_between(column, start_value, end_value)?
-            .fetch_all(self.get_pool())
-            .await
-    }
-
-    /// Finds records where a column value is in a list of values.
-    async fn find_by_values<V>(&self, column: &str, values: Vec<V>) -> RepositoryResult<Vec<T>>
-    where
-        V: serde::Serialize,
-    {
-        if values.is_empty() {
-            return Ok(vec![]);
-        }
-
-        let json_values: Result<Vec<Value>, _> = values
-            .into_iter()
-            .map(|v| serde_json::to_value(v))
-            .collect();
-        let json_values = json_values.map_err(|e| ApiError::Serialization(e))?;
-
-        self.query()
-            .where_in(column, json_values)?
-            .fetch_all(self.get_pool())
-            .await
-    }
-
-    /// Fetches a paginated and optionally sorted list of records.
-    async fn paginate_sorted(
-        &self,
-        page: u32,
-        page_size: u32,
-        sort_column: Option<&str>,
-        sort_direction: Option<OrderDirection>,
-    ) -> RepositoryResult<Vec<T>> {
-        let mut query = self.query().paginate(page, page_size);
-
-        if let Some(column) = sort_column {
-            let direction = sort_direction.unwrap_or(OrderDirection::Asc);
-            query = query.order_by(column, direction)?;
-        } else {
-            query = query.order_by("id", OrderDirection::Asc)?;
-        }
-
-        query.fetch_all(self.get_pool()).await
+        Ok(exists)
     }
 }
