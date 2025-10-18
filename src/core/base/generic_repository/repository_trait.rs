@@ -1,89 +1,94 @@
 use std::collections::HashMap;
 
 use crate::core::{
-    base::query_builder::{query_builder::QueryBuilderUtil, query_models::OrderDirection},
+    base::query_builder::{query_models::OrderDirection, generic_query_builder::QueryBuilder},
     errors::errors::ApiError,
 };
 
 use super::entry_trait::Entry;
 use serde_json::Value;
-use sqlx::{Pool, Postgres, QueryBuilder};
+use sqlx::{Database, Pool};
 
 pub type RepositoryResult<T> = Result<T, ApiError>;
 
-pub trait RepositoryTrait<T: Entry + Send + Sync + Unpin + 'static> {
+pub trait RepositoryTrait<T,DB>
+where
+    T: Entry<DB> + Send + Sync + Unpin + 'static + for<'r> sqlx::FromRow<'r, <DB as Database>::Row>,
+    DB: Database,
+    for<'q> <DB as Database>::Arguments<'q>: sqlx::IntoArguments<'q, DB>,
+    for<'c> &'c mut <DB as Database>::Connection: sqlx::Executor<'c, Database = DB>,
+{
     /// Returns a reference to the Postgres connection pool.
-    fn get_pool(&self) -> &Pool<Postgres>;
+    fn get_pool(&self) -> &Pool<DB>;
 
-    /// Creates a new QueryBuilderUtil instance for building queries.
-    fn query(&self) -> QueryBuilderUtil<T> {
-        QueryBuilderUtil::new()
-    }
-
-    fn build_query(&self, query:String) -> RepositoryResult<QueryBuilder<'_, Postgres>>{
-        Ok(QueryBuilder::new(query))
-    }
+    /// Creates a new QueryBuilder instance for building queries.
+    fn query(&self) -> QueryBuilder<DB,T>;
 
     /// Fetches all records of type T from the database.
     async fn find_all(&self) -> RepositoryResult<Vec<T>> {
-        self.query().fetch_all(self.get_pool()).await
+        let sql = format!("SELECT {} FROM {}", T::columns().join(", "), T::table_name());
+
+        let qb = self.query().set_sql(&sql);
+
+        Ok(qb.fetch_all_simple(self.get_pool()).await?)
     }
 
     /// Finds a record by its primary key (id). Returns an Option<T>.
-    async fn find_by_id(&self, id: T::Id) -> RepositoryResult<Option<T>> {
-        self.query()
-            .where_eq(
-                "id",
-                serde_json::to_value(id).map_err(|e| ApiError::Serialization(e))?,
-            )?
-            .fetch_optional(self.get_pool())
-            .await
-    }
+    async fn find_by_id(&self, id: T::Id) -> RepositoryResult<T> {
+        let mut qb = self.query();
 
-    /// Finds a record by its primary key (id). Returns an error if not found.
-    async fn find_by_id_required(&self, id: T::Id) -> RepositoryResult<T> {
-        self.query()
-            .where_eq(
-                "id",
-                serde_json::to_value(id).map_err(|e| ApiError::Serialization(e))?,
-            )?
-            .fetch_one(self.get_pool())
-            .await
-            .map_err(|e| match e {
-                ApiError::NotFound(_) => ApiError::NotFound(format!("{:?}", id)),
-                _ => e,
-            })
+        let sql = format!(
+            "SELECT {} FROM {} WHERE id = {}",
+            T::columns_to_string(),
+            T::table_name(),
+            qb.placeholder()
+        );
+
+        qb.set_sql(&sql).prepare().bind(id).fetch_one(self.get_pool()).await
     }
 
     /// Finds records by a specific column and value.
     async fn find_by_column<V>(&self, column: &str, value: V) -> RepositoryResult<Vec<T>>
     where
-        V: Send + Sync + serde::Serialize,
+        V: Send + Sync + serde::Serialize + sqlx::Encode<'static, DB> + sqlx::Type<DB>,
     {
-        let json_value = serde_json::to_value(value).map_err(|e| ApiError::Serialization(e))?;
+        let mut qb = self.query();
 
-        self.query()
-            .where_eq(column, json_value)?
-            .fetch_all(self.get_pool())
-            .await
+        let sql = format!(
+            "SELECT {} FROM {} WHERE {} = {}",
+            T::columns_to_string(),
+            T::table_name(),
+            column,
+            qb.placeholder()
+        );
+
+        qb.set_sql(&sql).prepare().bind(value).fetch_all(self.get_pool()).await
     }
 
     /// Finds records matching a set of criteria (column, value pairs).
-    async fn find_by_criteria(&self, criteria: &[(&str, Value)]) -> RepositoryResult<Vec<T>> {
-        if criteria.is_empty() {
+    async fn find_by_columns<V>(&self, columns: &[&str], values: &[V]) -> RepositoryResult<Vec<T>>
+    where
+        V: Send + Sync + serde::Serialize + sqlx::Encode<'static, DB> + sqlx::Type<DB>,
+    {
+        if columns.is_empty() || values.is_empty() {
             return self.find_all().await;
+        }else if (columns.len() != values.len()){
+            return Err(ApiError::InternalServer("Columns and values length mismatch".to_string()));
+            
         }
-
-        let mut query = self.query();
-
-        for (i, (column, value)) in criteria.iter().enumerate() {
-            query = query.where_eq(column, value.clone())?;
-            if i < criteria.len() - 1 {
-                query = query.and();
+        let mut qb = self.query();
+        let mut sql = format!("SELECT {} FROM {} WHERE ", T::columns_to_string(), T::table_name());
+        for(i, column) in columns.iter().enumerate(){
+            sql.push_str(&format!("{} = {}", column, qb.placeholder()));
+            if i < columns.len() -1 {
+                sql.push_str(" AND ");
             }
         }
-
-        query.fetch_all(self.get_pool()).await
+        let mut executor = qb.set_sql(&sql).prepare();
+        for value in values.iter() {
+            executor = executor.bind(value.clone());
+        }
+        executor.fetch_all(self.get_pool()).await
     }
 
     /// Counts the total number of records of type T.

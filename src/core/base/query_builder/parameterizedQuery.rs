@@ -1,3 +1,5 @@
+use crate::core::base::query_builder::query_models::QueryResult;
+use crate::core::errors::errors::ApiError;
 use sqlx::{Database, FromRow, Pool};
 
 // Structure to manage bound parameters
@@ -29,37 +31,40 @@ where
     }
 
     // Execute the query
-    pub async fn execute(self, pool: &Pool<DB>) -> Result<DB::QueryResult, sqlx::Error> {
-        self.query.execute(pool).await
+    pub async fn execute(self, pool: &Pool<DB>) -> QueryResult<DB::QueryResult> {
+        self.query.execute(pool).await.map_err(ApiError::from)
     }
 
     // Fetch all with typed results
-    pub async fn fetch_all<T>(self, pool: &Pool<DB>) -> Result<Vec<T>, sqlx::Error>
+    pub async fn fetch_all<T>(self, pool: &Pool<DB>) -> QueryResult<Vec<T>>
     where
         T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
         sqlx::query_as::<_, T>(self.sql)
             .fetch_all(pool)
             .await
+            .map_err(ApiError::from)
     }
 
     // Fetch one
-    pub async fn fetch_one<T>(self, pool: &Pool<DB>) -> Result<T, sqlx::Error>
+    pub async fn fetch_one<T>(self, pool: &Pool<DB>) -> QueryResult<T>
     where
         T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
         sqlx::query_as::<_, T>(self.sql)
             .fetch_one(pool)
             .await
+            .map_err(ApiError::from)
     }
 
     // Fetch optional
-    pub async fn fetch_optional<T>(self, pool: &Pool<DB>) -> Result<Option<T>, sqlx::Error>
+    pub async fn fetch_optional<T>(self, pool: &Pool<DB>) -> QueryResult<Option<T>>
     where
         T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
         sqlx::query_as::<_, T>(self.sql)
             .fetch_optional(pool)
             .await
+            .map_err(ApiError::from)
     }
 }

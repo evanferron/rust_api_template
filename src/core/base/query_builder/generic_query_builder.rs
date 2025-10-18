@@ -1,6 +1,9 @@
-use sqlx::{Database, Pool, FromRow};
-use std::marker::PhantomData;
+use crate::core::base::generic_repository::entry_trait::Entry;
 use crate::core::base::query_builder::parameterizedQuery::ParameterizedQuery;
+use crate::core::base::query_builder::query_models::QueryResult;
+use crate::core::errors::errors::ApiError;
+use sqlx::{Database, FromRow, Pool};
+use std::marker::PhantomData;
 
 // Enum to handle differences between DBs
 #[derive(Clone, Copy, Debug)]
@@ -21,16 +24,18 @@ impl DbType {
 }
 
 // Simple QueryBuilder for raw SQL
-pub struct QueryBuilder<DB: Database> {
+pub struct QueryBuilder<DB: Database, T: Entry<DB> + Send + Sync + Unpin + 'static> {
     db_type: DbType,
     sql: String,
     param_count: usize,
     _phantom: PhantomData<DB>,
+    _phantom_type: PhantomData<T>,
 }
 
-impl<DB> QueryBuilder<DB>
+impl<DB, T> QueryBuilder<DB, T>
 where
     DB: Database,
+    T: Entry<DB> + Send + Sync + Unpin + 'static,
     for<'q> <DB as Database>::Arguments<'q>: sqlx::IntoArguments<'q, DB>,
     for<'c> &'c mut <DB as Database>::Connection: sqlx::Executor<'c, Database = DB>,
 {
@@ -40,11 +45,12 @@ where
             sql: String::new(),
             param_count: 0,
             _phantom: PhantomData,
+            _phantom_type: PhantomData,
         }
     }
 
     // Set the full SQL
-    pub fn sql(mut self, sql: impl Into<String>) -> Self {
+    pub fn set_sql(mut self, sql: impl Into<String>) -> Self {
         self.sql = sql.into();
         self
     }
@@ -76,73 +82,48 @@ where
 
     // Helper: execute a simple query without parameters
     // Returns the raw QueryResult; the caller can call .rows_affected() on it
-    pub async fn execute_simple(self,pool: &Pool<DB>) -> Result<DB::QueryResult, sqlx::Error> {
+    pub async fn execute_simple(self, pool: &Pool<DB>) -> QueryResult<DB::QueryResult> {
         sqlx::query(&self.sql)
             .execute(pool)
             .await
+            .map_err(ApiError::from)
     }
 
     // Helper: fetch_all without parameters
-    pub async fn fetch_all_simple<T>(self,pool: &Pool<DB>) -> Result<Vec<T>, sqlx::Error>
+    pub async fn fetch_all_simple(self, pool: &Pool<DB>) -> QueryResult<Vec<T>>
     where
         T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
-        let result = sqlx::query_as::<_, T>(&self.sql)
+        sqlx::query_as::<_, T>(&self.sql)
             .fetch_all(pool)
-            .await?;
-        Ok(result)
+            .await
+            .map_err(ApiError::from)
     }
 
     // Helper: fetch_one without parameters
-    pub async fn fetch_one_simple<T>(self,pool: &Pool<DB>) -> Result<T, sqlx::Error>
+    pub async fn fetch_one_simple(self, pool: &Pool<DB>) -> QueryResult<T>
     where
         T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
-        let result = sqlx::query_as::<_, T>(&self.sql)
+        sqlx::query_as::<_, T>(&self.sql)
             .fetch_one(pool)
-            .await?;
-        Ok(result)
+            .await
+            .map_err(ApiError::from)
     }
 
     // Helper: fetch_optional without parameters
-    pub async fn fetch_optional_simple<T>(self,pool: &Pool<DB>) -> Result<Option<T>, sqlx::Error>
+    pub async fn fetch_optional_simple(self, pool: &Pool<DB>) -> QueryResult<Option<T>>
     where
         T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
-        let result = sqlx::query_as::<_, T>(&self.sql)
+        sqlx::query_as::<_, T>(&self.sql)
             .fetch_optional(pool)
-            .await?;
-        Ok(result)
+            .await
+            .map_err(ApiError::from)
     }
 
     // Create a BoundQuery to bind parameters fluently
     pub fn prepare(&self) -> ParameterizedQuery<'_, DB> {
         ParameterizedQuery::new(&self.sql)
     }
-}
-
-// Type aliases pour chaque DB
-#[cfg(feature = "postgres")]
-pub type PgQueryBuilder = QueryBuilder<sqlx::Postgres>;
-
-#[cfg(feature = "mysql")]
-pub type MySqlQueryBuilder = QueryBuilder<sqlx::MySql>;
-
-#[cfg(feature = "sqlite")]
-pub type SqliteQueryBuilder = QueryBuilder<sqlx::Sqlite>;
-
-// Helpers to create builders
-#[cfg(feature = "postgres")]
-pub async fn create_pg_builder() -> Result<PgQueryBuilder, sqlx::Error> {
-    Ok(QueryBuilder::new(DbType::Postgres))
-}
-
-#[cfg(feature = "mysql")]
-pub async fn create_mysql_builder() -> Result<MySqlQueryBuilder, sqlx::Error> {
-    Ok(QueryBuilder::new(DbType::MySQL))
-}
-
-#[cfg(feature = "sqlite")]
-pub async fn create_sqlite_builder() -> Result<SqliteQueryBuilder, sqlx::Error> {
-    Ok(QueryBuilder::new(DbType::SQLite))
 }
