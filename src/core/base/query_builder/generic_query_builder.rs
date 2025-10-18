@@ -1,5 +1,5 @@
 use crate::core::base::generic_repository::entry_trait::Entry;
-use crate::core::base::query_builder::parameterized_query::QueryExecutor;
+use crate::core::base::query_builder::query_executor::QueryExecutor;
 use crate::core::base::query_builder::query_models::QueryResult;
 use crate::core::errors::errors::ApiError;
 use sqlx::{Database, FromRow, Pool, Transaction};

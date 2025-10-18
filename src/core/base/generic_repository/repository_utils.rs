@@ -2,7 +2,7 @@ use serde_json::Value;
 use sqlx::{Database, Pool, Transaction};
 use sqlx::types::JsonValue;
 use crate::core::base::generic_repository::entry_trait::{BindValue, Entry};
-use crate::core::base::query_builder::parameterized_query::QueryExecutor;
+use crate::core::base::query_builder::query_executor::QueryExecutor;
 use crate::core::errors::errors::ApiError;
 
 pub fn bind_entry_to_query<'a, DB, T>(
