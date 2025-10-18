@@ -3,7 +3,6 @@ use sqlx::{Database, FromRow, Pool};
 // Structure to manage bound parameters
 pub struct ParameterizedQuery<'a, DB: Database> {
     sql: &'a str,
-    pool: &'a Pool<DB>,
     query: sqlx::query::Query<'a, DB, <DB as Database>::Arguments<'a>>,
 }
 
@@ -13,10 +12,9 @@ where
     for<'q> <DB as Database>::Arguments<'q>: sqlx::IntoArguments<'q, DB>,
     for<'c> &'c mut <DB as Database>::Connection: sqlx::Executor<'c, Database = DB>,
 {
-    pub(crate) fn new(sql: &'a str, pool: &'a Pool<DB>) -> Self {
+    pub(crate) fn new(sql: &'a str) -> Self {
         Self {
             sql,
-            pool,
             query: sqlx::query(sql),
         }
     }
@@ -31,37 +29,37 @@ where
     }
 
     // Execute the query
-    pub async fn execute(self) -> Result<DB::QueryResult, sqlx::Error> {
-        self.query.execute(self.pool).await
+    pub async fn execute(self, pool: &Pool<DB>) -> Result<DB::QueryResult, sqlx::Error> {
+        self.query.execute(pool).await
     }
 
     // Fetch all with typed results
-    pub async fn fetch_all<T>(self) -> Result<Vec<T>, sqlx::Error>
+    pub async fn fetch_all<T>(self, pool: &Pool<DB>) -> Result<Vec<T>, sqlx::Error>
     where
         T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
         sqlx::query_as::<_, T>(self.sql)
-            .fetch_all(self.pool)
+            .fetch_all(pool)
             .await
     }
 
     // Fetch one
-    pub async fn fetch_one<T>(self) -> Result<T, sqlx::Error>
+    pub async fn fetch_one<T>(self, pool: &Pool<DB>) -> Result<T, sqlx::Error>
     where
         T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
         sqlx::query_as::<_, T>(self.sql)
-            .fetch_one(self.pool)
+            .fetch_one(pool)
             .await
     }
 
     // Fetch optional
-    pub async fn fetch_optional<T>(self) -> Result<Option<T>, sqlx::Error>
+    pub async fn fetch_optional<T>(self, pool: &Pool<DB>) -> Result<Option<T>, sqlx::Error>
     where
         T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
         sqlx::query_as::<_, T>(self.sql)
-            .fetch_optional(self.pool)
+            .fetch_optional(pool)
             .await
     }
 }

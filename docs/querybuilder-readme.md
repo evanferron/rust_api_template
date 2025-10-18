@@ -157,9 +157,6 @@ println!("Lignes supprimées: {}", result.rows_affected());
 |---------|-------------|
 | `get_sql()` | Récupère le SQL généré |
 | `param_count()` | Nombre de paramètres |
-| `pool()` | Référence au pool |
-| `pool_clone()` | Clone le pool |
-| `build()` | Décompose en `(String, Pool<DB>)` |
 
 ### Exécution sans paramètres
 
@@ -389,7 +386,6 @@ let qb: PgQueryBuilder = QueryBuilder::new(pool, DbType::Postgres);
 ```rust
 // Afficher le SQL généré
 println!("SQL: {}", qb.get_sql());
-println!("Params count: {}", qb.param_count());
 ```
 
 ## 📝 Notes

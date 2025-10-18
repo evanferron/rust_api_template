@@ -23,7 +23,6 @@ impl DbType {
 // Simple QueryBuilder for raw SQL
 pub struct QueryBuilder<DB: Database> {
     db_type: DbType,
-    pool: Pool<DB>,
     sql: String,
     param_count: usize,
     _phantom: PhantomData<DB>,
@@ -35,10 +34,9 @@ where
     for<'q> <DB as Database>::Arguments<'q>: sqlx::IntoArguments<'q, DB>,
     for<'c> &'c mut <DB as Database>::Connection: sqlx::Executor<'c, Database = DB>,
 {
-    pub fn new(pool: Pool<DB>, db_type: DbType) -> Self {
+    pub fn new(db_type: DbType) -> Self {
         Self {
             db_type,
-            pool,
             sql: String::new(),
             param_count: 0,
             _phantom: PhantomData,
@@ -76,65 +74,50 @@ where
         self.param_count
     }
 
-    // Get a reference to the pool
-    pub fn pool(&self) -> &Pool<DB> {
-        &self.pool
-    }
-
-    // Clone the pool
-    pub fn pool_clone(&self) -> Pool<DB> {
-        self.pool.clone()
-    }
-
-    // Decompose the builder into SQL and Pool
-    pub fn build(self) -> (String, Pool<DB>) {
-        (self.sql, self.pool)
-    }
-
     // Helper: execute a simple query without parameters
     // Returns the raw QueryResult; the caller can call .rows_affected() on it
-    pub async fn execute_simple(self) -> Result<DB::QueryResult, sqlx::Error> {
+    pub async fn execute_simple(self,pool: &Pool<DB>) -> Result<DB::QueryResult, sqlx::Error> {
         sqlx::query(&self.sql)
-            .execute(&self.pool)
+            .execute(pool)
             .await
     }
 
     // Helper: fetch_all without parameters
-    pub async fn fetch_all_simple<T>(self) -> Result<Vec<T>, sqlx::Error>
+    pub async fn fetch_all_simple<T>(self,pool: &Pool<DB>) -> Result<Vec<T>, sqlx::Error>
     where
         T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
         let result = sqlx::query_as::<_, T>(&self.sql)
-            .fetch_all(&self.pool)
+            .fetch_all(pool)
             .await?;
         Ok(result)
     }
 
     // Helper: fetch_one without parameters
-    pub async fn fetch_one_simple<T>(self) -> Result<T, sqlx::Error>
+    pub async fn fetch_one_simple<T>(self,pool: &Pool<DB>) -> Result<T, sqlx::Error>
     where
         T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
         let result = sqlx::query_as::<_, T>(&self.sql)
-            .fetch_one(&self.pool)
+            .fetch_one(pool)
             .await?;
         Ok(result)
     }
 
     // Helper: fetch_optional without parameters
-    pub async fn fetch_optional_simple<T>(self) -> Result<Option<T>, sqlx::Error>
+    pub async fn fetch_optional_simple<T>(self,pool: &Pool<DB>) -> Result<Option<T>, sqlx::Error>
     where
         T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
         let result = sqlx::query_as::<_, T>(&self.sql)
-            .fetch_optional(&self.pool)
+            .fetch_optional(pool)
             .await?;
         Ok(result)
     }
 
     // Create a BoundQuery to bind parameters fluently
     pub fn prepare(&self) -> ParameterizedQuery<'_, DB> {
-        ParameterizedQuery::new(&self.sql, &self.pool)
+        ParameterizedQuery::new(&self.sql)
     }
 }
 
@@ -150,19 +133,16 @@ pub type SqliteQueryBuilder = QueryBuilder<sqlx::Sqlite>;
 
 // Helpers to create builders
 #[cfg(feature = "postgres")]
-pub async fn create_pg_builder(database_url: &str) -> Result<PgQueryBuilder, sqlx::Error> {
-    let pool = sqlx::postgres::PgPool::connect(database_url).await?;
-    Ok(QueryBuilder::new(pool, DbType::Postgres))
+pub async fn create_pg_builder() -> Result<PgQueryBuilder, sqlx::Error> {
+    Ok(QueryBuilder::new(DbType::Postgres))
 }
 
 #[cfg(feature = "mysql")]
-pub async fn create_mysql_builder(database_url: &str) -> Result<MySqlQueryBuilder, sqlx::Error> {
-    let pool = sqlx::mysql::MySqlPool::connect(database_url).await?;
-    Ok(QueryBuilder::new(pool, DbType::MySQL))
+pub async fn create_mysql_builder() -> Result<MySqlQueryBuilder, sqlx::Error> {
+    Ok(QueryBuilder::new(DbType::MySQL))
 }
 
 #[cfg(feature = "sqlite")]
-pub async fn create_sqlite_builder(database_url: &str) -> Result<SqliteQueryBuilder, sqlx::Error> {
-    let pool = sqlx::sqlite::SqlitePool::connect(database_url).await?;
-    Ok(QueryBuilder::new(pool, DbType::SQLite))
+pub async fn create_sqlite_builder() -> Result<SqliteQueryBuilder, sqlx::Error> {
+    Ok(QueryBuilder::new(DbType::SQLite))
 }
