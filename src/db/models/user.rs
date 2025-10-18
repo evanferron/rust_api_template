@@ -1,4 +1,4 @@
-use crate::core::base::generic_repository::entry_trait::Entry;
+use crate::core::base::generic_repository::entry_trait::{BindValue, Entry};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -29,7 +29,12 @@ impl User {
     }
 }
 
-impl Entry for User {
+impl<DB> Entry<DB> for User
+where
+    Uuid: sqlx::Encode<'static, DB>,
+    Uuid: sqlx::Type<DB>,
+    DB: sqlx::Database
+{
     type Id = Uuid;
 
     fn set_created_at(&mut self, created_at: DateTime<Utc>) {
@@ -52,6 +57,17 @@ impl Entry for User {
             "password_hash",
             "created_at",
             "updated_at",
+        ]
+    }
+
+    fn to_bind_values(&self) -> Vec<BindValue> {
+        vec![
+            BindValue::String(self.id.to_string()),
+            BindValue::String(self.username.clone()),
+            BindValue::String(self.email.clone()),
+            BindValue::String(self.password_hash.clone()),
+            BindValue::String(self.created_at.to_rfc3339()),
+            BindValue::String(self.updated_at.to_rfc3339()),
         ]
     }
 }

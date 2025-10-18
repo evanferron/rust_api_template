@@ -4,6 +4,15 @@ use chrono::{DateTime, Utc};
 use serde::{Serialize, de::DeserializeOwned};
 use sqlx::{FromRow, postgres::PgRow};
 
+pub enum BindValue {
+    Null,
+    Bool(bool),
+    Int(i64),
+    Float(f64),
+    String(String),
+    Json(serde_json::Value),
+}
+
 /// The `Entry` trait defines a common interface for database entities.
 ///
 /// Types implementing this trait must support serialization, deserialization,
@@ -47,7 +56,13 @@ pub trait Entry<DB: sqlx::Database>:
             .collect()
     }
     
+    fn insertable_columns_to_string() -> String {
+        Self::insertable_columns().join(", ")
+    }
+
     fn columns_to_string() -> String {
         Self::columns().join(", ")
     }
+
+    fn to_bind_values(&self) -> Vec<BindValue>;
 }

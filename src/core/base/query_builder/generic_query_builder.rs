@@ -1,8 +1,8 @@
 use crate::core::base::generic_repository::entry_trait::Entry;
-use crate::core::base::query_builder::parameterizedQuery::ParameterizedQuery;
+use crate::core::base::query_builder::parameterized_query::QueryExecutor;
 use crate::core::base::query_builder::query_models::QueryResult;
 use crate::core::errors::errors::ApiError;
-use sqlx::{Database, FromRow, Pool};
+use sqlx::{Database, FromRow, Pool, Transaction};
 use std::marker::PhantomData;
 
 // Enum to handle differences between DBs
@@ -123,7 +123,7 @@ where
     }
 
     // Create a BoundQuery to bind parameters fluently
-    pub fn prepare(&self) -> ParameterizedQuery<'_, DB> {
-        ParameterizedQuery::new(&self.sql)
+    pub fn prepare(&self) -> QueryExecutor<'_, DB> {
+        QueryExecutor::new(&self.sql)
     }
 }
