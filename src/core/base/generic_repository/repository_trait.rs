@@ -43,9 +43,7 @@ where
             T::table_name()
         );
 
-        let qb = self.query().set_sql(&sql);
-
-        Ok(qb.fetch_all_simple(self.get_pool()).await?)
+        self.query().set_sql(&sql).fetch_all_simple(self.get_pool()).await
     }
 
     /// Finds a record by its primary key (id). Returns an Option<T>.
@@ -69,7 +67,7 @@ where
     /// Finds records by a specific column and value.
     async fn find_by_column<V>(&self, column: &str, value: V) -> RepositoryResult<Vec<T>>
     where
-        V: Send + Sync + serde::Serialize + sqlx::Encode<'static, DB> + sqlx::Type<DB>,
+        V: Send + Sync + serde::Serialize + sqlx::Encode<'static, DB> + sqlx::Type<DB> + 'static,
     {
         let mut qb = self.query();
 
@@ -81,8 +79,10 @@ where
             qb.placeholder()
         );
 
-        qb.set_sql(&sql)
-            .prepare()
+        qb.set_sql(&sql);
+
+        let executor = qb.prepare();
+        executor
             .bind(value)
             .fetch_all(self.get_pool())
             .await

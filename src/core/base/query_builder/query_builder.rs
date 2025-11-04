@@ -2,7 +2,7 @@ use crate::core::base::generic_repository::entry_trait::Entry;
 use crate::core::base::query_builder::query_executor::QueryExecutor;
 use crate::core::base::query_builder::query_models::QueryResult;
 use crate::core::errors::errors::ApiError;
-use sqlx::{Database, FromRow, Pool, Transaction};
+use sqlx::{Database, FromRow, Pool};
 use std::marker::PhantomData;
 
 // Enum to handle differences between DBs
@@ -49,14 +49,14 @@ where
         }
     }
 
-    // Set the full SQL
-    pub fn set_sql(mut self, sql: impl Into<String>) -> Self {
+    // Set the full SQL - pattern mutable
+    pub fn set_sql(&mut self, sql: impl Into<String>) -> &mut Self {
         self.sql = sql.into();
         self
     }
 
     // Append SQL
-    pub fn append(mut self, sql: &str) -> Self {
+    pub fn append(&mut self, sql: &str) -> &mut Self {
         if !self.sql.is_empty() && !self.sql.ends_with(' ') {
             self.sql.push(' ');
         }
@@ -82,7 +82,7 @@ where
 
     // Helper: execute a simple query without parameters
     // Returns the raw QueryResult; the caller can call .rows_affected() on it
-    pub async fn execute_simple(self, pool: &Pool<DB>) -> QueryResult<DB::QueryResult> {
+    pub async fn execute_simple(&self, pool: &Pool<DB>) -> QueryResult<DB::QueryResult> {
         sqlx::query(&self.sql)
             .execute(pool)
             .await
@@ -90,7 +90,7 @@ where
     }
 
     // Helper: fetch_all without parameters
-    pub async fn fetch_all_simple(self, pool: &Pool<DB>) -> QueryResult<Vec<T>>
+    pub async fn fetch_all_simple(&self, pool: &Pool<DB>) -> QueryResult<Vec<T>>
     where
         T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
@@ -101,7 +101,7 @@ where
     }
 
     // Helper: fetch_one without parameters
-    pub async fn fetch_one_simple(self, pool: &Pool<DB>) -> QueryResult<T>
+    pub async fn fetch_one_simple(&self, pool: &Pool<DB>) -> QueryResult<T>
     where
         T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
@@ -112,7 +112,7 @@ where
     }
 
     // Helper: fetch_optional without parameters
-    pub async fn fetch_optional_simple(self, pool: &Pool<DB>) -> QueryResult<Option<T>>
+    pub async fn fetch_optional_simple(&self, pool: &Pool<DB>) -> QueryResult<Option<T>>
     where
         T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
