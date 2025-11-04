@@ -3,15 +3,7 @@ use std::fmt::Debug;
 use chrono::{DateTime, Utc};
 use serde::{Serialize, de::DeserializeOwned};
 use sqlx::{FromRow, postgres::PgRow};
-
-pub enum BindValue {
-    Null,
-    Bool(bool),
-    Int(i64),
-    Float(f64),
-    String(String),
-    Json(serde_json::Value),
-}
+use crate::core::base::bind_value::BindValue;
 
 /// The `Entry` trait defines a common interface for database entities.
 ///

@@ -1,7 +1,8 @@
 use serde_json::Value;
 use sqlx::{Database, Pool, Transaction};
 use sqlx::types::JsonValue;
-use crate::core::base::generic_repository::entry_trait::{BindValue, Entry};
+use crate::core::base::bind_value::BindValue;
+use crate::core::base::generic_repository::entry_trait::Entry;
 use crate::core::base::query_builder::query_executor::QueryExecutor;
 use crate::core::errors::errors::ApiError;
 
@@ -42,6 +43,8 @@ where
     sqlx::types::Json<Value>: sqlx::Encode<'a, DB> + sqlx::Type<DB>,
     Option<sqlx::types::Json<JsonValue>>: sqlx::Encode<'a, DB>,
 {
+
+    query_builder.bind(*v)
     match bind_value {
         BindValue::Null => query_builder.bind(Option::<sqlx::types::Json<Value>>::None),
         BindValue::Bool(v) => query_builder.bind(*v),
