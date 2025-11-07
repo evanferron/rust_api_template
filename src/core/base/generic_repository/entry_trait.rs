@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use chrono::{DateTime, Utc};
 use serde::{Serialize, de::DeserializeOwned};
 use sqlx::{FromRow, postgres::PgRow};
-use crate::core::base::bind_value::BindValue;
+pub(crate) use crate::core::base::bind_value::BindValue;
 
 /// The `Entry` trait defines a common interface for database entities.
 ///

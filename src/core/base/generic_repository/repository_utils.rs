@@ -1,58 +1,34 @@
 use serde_json::Value;
-use sqlx::{Database, Pool, Transaction};
-use sqlx::types::JsonValue;
+use sqlx::{ Database, Pool, Transaction};
+use uuid::Uuid;
 use crate::core::base::bind_value::BindValue;
 use crate::core::base::generic_repository::entry_trait::Entry;
-use crate::core::base::query_builder::query_executor::QueryExecutor;
+use crate::core::base::query_builder::query_builder::QueryBuilder;
 use crate::core::errors::errors::ApiError;
 
 pub fn bind_entry_to_query<'a, DB, T>(
-    mut query_builder: QueryExecutor<'a, DB>,
+    mut query_builder: QueryBuilder<DB,T>,
     entry: &T,
-) -> QueryExecutor<'a,DB>
+) -> QueryBuilder<DB,T>
 where
     T: Entry<DB> + Send + Sync + Unpin + 'static + for<'r> sqlx::FromRow<'r, <DB as Database>::Row>,
     DB: Database,
     for<'q> <DB as Database>::Arguments<'q>: sqlx::IntoArguments<'q, DB>,
     for<'c> &'c mut <DB as Database>::Connection: sqlx::Executor<'c, Database = DB>,
-    bool: sqlx::Encode<'a, DB> + sqlx::Type<DB>,
-    i64: sqlx::Encode<'a, DB> + sqlx::Type<DB>,
-    f64: sqlx::Encode<'a, DB> + sqlx::Type<DB>,
-    String: sqlx::Encode<'a, DB> + sqlx::Type<DB>,
-    sqlx::types::Json<Value>: sqlx::Encode<'a, DB> + sqlx::Type<DB>,
-    Option<sqlx::types::Json<JsonValue>>: sqlx::Encode<'a, DB>,
+    for<'q> i32: sqlx::Encode<'q, DB>+ sqlx::Type<DB>,
+    for<'q> i64: sqlx::Encode<'q, DB>+ sqlx::Type<DB>,
+    for<'q> f64: sqlx::Encode<'q, DB>+ sqlx::Type<DB>,
+    for<'q> bool: sqlx::Encode<'q, DB>+ sqlx::Type<DB>,
+    for<'q> String: sqlx::Encode<'q, DB>+ sqlx::Type<DB>,
+    for<'q> i32: sqlx::Encode<'q, DB>+ sqlx::Type<DB>,
+    for<'q> Uuid: sqlx::Encode<'q, DB>+ sqlx::Type<DB>,
+    for<'q> Value: sqlx::Encode<'q, DB>+ sqlx::Type<DB>
 {
-    for bind_value in entry.to_bind_values() {
-        query_builder = bind_value_to_query(query_builder, &bind_value);
+    let values = entry.to_bind_values();
+    for bind_value in values {
+        query_builder = query_builder.add_param(bind_value);
     }
     query_builder
-}
-
-pub fn bind_value_to_query<'a, DB>(
-    query_builder: QueryExecutor<'a, DB>,
-    bind_value: &BindValue,
-) -> QueryExecutor<'a,DB>
-where
-    DB: Database,
-    for<'q> <DB as Database>::Arguments<'q>: sqlx::IntoArguments<'q, DB>,
-    for<'c> &'c mut <DB as Database>::Connection: sqlx::Executor<'c, Database = DB>,
-    bool: sqlx::Encode<'a, DB> + sqlx::Type<DB>,
-    i64: sqlx::Encode<'a, DB> + sqlx::Type<DB>,
-    f64: sqlx::Encode<'a, DB> + sqlx::Type<DB>,
-    String: sqlx::Encode<'a, DB> + sqlx::Type<DB>,
-    sqlx::types::Json<Value>: sqlx::Encode<'a, DB> + sqlx::Type<DB>,
-    Option<sqlx::types::Json<JsonValue>>: sqlx::Encode<'a, DB>,
-{
-
-    query_builder.bind(*v)
-    match bind_value {
-        BindValue::Null => query_builder.bind(Option::<sqlx::types::Json<Value>>::None),
-        BindValue::Bool(v) => query_builder.bind(*v),
-        BindValue::Int(v) => query_builder.bind(*v),
-        BindValue::Float(v) => query_builder.bind(*v),
-        BindValue::String(v) => query_builder.bind(v.clone()),
-        BindValue::Json(v) => query_builder.bind(sqlx::types::Json(v.clone())),
-    }
 }
 
 pub async fn execute_transaction<F, Fut, R, DB, C>(
@@ -65,7 +41,6 @@ where
     Fut: Future<Output = Result<R, ApiError>> + Send + 'static,
     DB: Database,
     C: Send,
-    for<'c> &'c mut Transaction<'c, DB>: sqlx::Executor<'c, Database = DB>,
 {
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
 

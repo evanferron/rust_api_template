@@ -5,13 +5,14 @@ use crate::core::{
 
 use super::entry_trait::{BindValue, Entry};
 use crate::core::base::generic_repository::repository_utils::{
-    bind_entry_to_query, bind_value_to_query, execute_transaction,
+    bind_entry_to_query,
 };
 use chrono::Utc;
 use serde_json::Value;
-use sqlx::types::JsonValue;
-use sqlx::{Database, Pool, Transaction};
+use sqlx::{Database, FromRow, Pool, Transaction};
+use uuid::Uuid;
 use crate::core::base::extension::query_result_extension::QueryResultExt;
+use crate::core::base::generic_repository::result_models::{CountResult, ExistResult};
 
 pub type RepositoryResult<T> = Result<T, ApiError>;
 
@@ -21,19 +22,29 @@ where
     DB: Database,
     DB::QueryResult: QueryResultExt,
     for<'a> <DB as Database>::Arguments<'a>: sqlx::IntoArguments<'a, DB>,
-    for<'a> &'a mut <DB as Database>::Connection: sqlx::Executor<'a, Database = DB>,
-    for<'a> bool: sqlx::Encode<'a, DB> + sqlx::Type<DB>,
-    for<'a> i64: sqlx::Encode<'a, DB> + sqlx::Type<DB>,
-    for<'a> f64: sqlx::Encode<'a, DB> + sqlx::Type<DB>,
-    for<'a> String: sqlx::Encode<'a, DB> + sqlx::Type<DB>,
-    for<'a> sqlx::types::Json<Value>: sqlx::Encode<'a, DB> + sqlx::Type<DB>,
-    for<'a> Option<sqlx::types::Json<JsonValue>>: sqlx::Encode<'a, DB>,
+    for<'a> &'a mut <DB as Database>::Connection: sqlx::Executor<'a, Database=DB>,
+    for<'a> &'a str: sqlx::ColumnIndex<<DB as Database>::Row>,
+    for<'q> i32: sqlx::Encode<'q, DB>+ sqlx::Decode<'q, DB> + sqlx::Type<DB>,
+    for<'q> i64: sqlx::Encode<'q, DB>+ sqlx::Decode<'q, DB> + sqlx::Type<DB>,
+    for<'q> f64: sqlx::Encode<'q, DB>+ sqlx::Decode<'q, DB> + sqlx::Type<DB>,
+    for<'q> bool: sqlx::Encode<'q, DB>+ sqlx::Decode<'q, DB> + sqlx::Type<DB>,
+    for<'q> String: sqlx::Encode<'q, DB>+ sqlx::Decode<'q, DB> + sqlx::Type<DB>,
+    for<'q> i32: sqlx::Encode<'q, DB>+ sqlx::Decode<'q, DB> + sqlx::Type<DB>,
+    for<'q> Uuid: sqlx::Encode<'q, DB>+ sqlx::Decode<'q, DB> + sqlx::Type<DB>,
+    for<'q> Value: sqlx::Encode<'q, DB>+ sqlx::Decode<'q, DB> + sqlx::Type<DB>,
+    for<'q> String: sqlx::Encode<'q, DB>+ sqlx::Decode<'q, DB> + sqlx::Type<DB>,
+    for<'q> sqlx::types::Json<Value>: sqlx::Encode<'q, DB> + sqlx::Type<DB>,
 {
     /// Returns a reference to the Postgres connection pool.
     fn get_pool(&self) -> &Pool<DB>;
 
     /// Creates a new QueryBuilder instance for building queries.
     fn query(&self) -> QueryBuilder<DB, T>;
+
+    fn query_custom<M>(&self)
+                       -> QueryBuilder<DB, M>
+    where
+        M: for<'r> FromRow<'r, DB::Row> + Send + Unpin;
 
     /// Fetches all records of type T from the database.
     async fn find_all(&self) -> RepositoryResult<Vec<T>> {
@@ -43,11 +54,11 @@ where
             T::table_name()
         );
 
-        self.query().set_sql(&sql).fetch_all_simple(self.get_pool()).await
+        self.query().set_sql(&sql).fetch_all(self.get_pool()).await
     }
 
     /// Finds a record by its primary key (id). Returns an Option<T>.
-    async fn find_by_id(&self, id: T::Id) -> RepositoryResult<T> {
+    async fn find_by_id(&self, id: BindValue) -> RepositoryResult<T> {
         let mut qb = self.query();
 
         let sql = format!(
@@ -57,17 +68,13 @@ where
             qb.placeholder()
         );
 
-        qb.set_sql(&sql)
-            .prepare()
-            .bind(id)
+        qb.set_sql(&sql).add_param(id)
             .fetch_one(self.get_pool())
             .await
     }
 
     /// Finds records by a specific column and value.
-    async fn find_by_column<V>(&self, column: &str, value: V) -> RepositoryResult<Vec<T>>
-    where
-        V: Send + Sync + serde::Serialize + sqlx::Encode<'static, DB> + sqlx::Type<DB> + 'static,
+    async fn find_by_colum(&self, column: &str, value: BindValue) -> RepositoryResult<Vec<T>>
     {
         let mut qb = self.query();
 
@@ -79,19 +86,14 @@ where
             qb.placeholder()
         );
 
-        qb.set_sql(&sql);
-
-        let executor = qb.prepare();
-        executor
-            .bind(value)
+        qb.set_sql(&sql)
+            .add_param(value)
             .fetch_all(self.get_pool())
             .await
     }
 
     /// Finds records matching a set of criteria (column, value pairs).
-    async fn find_by_columns<V>(&self, columns: &[&str], values: &[V]) -> RepositoryResult<Vec<T>>
-    where
-        V: Send + Sync + serde::Serialize + sqlx::Encode<'static, DB> + sqlx::Type<DB>,
+    async fn find_by_columns(&self, columns: &[&str], values: Vec<BindValue>) -> RepositoryResult<Vec<T>>
     {
         if columns.is_empty() || values.is_empty() {
             return self.find_all().await;
@@ -112,29 +114,19 @@ where
                 sql.push_str(" AND ");
             }
         }
-        let mut executor = qb.set_sql(&sql).prepare();
-        for value in values.iter() {
-            executor = executor.bind(value.clone());
-        }
-        executor.fetch_all(self.get_pool()).await
+        qb.set_sql(&sql).add_params(values).fetch_all(self.get_pool()).await
     }
 
     /// Counts the total number of records of type T.
     async fn count(&self) -> RepositoryResult<i64> {
         let sql = format!("SELECT COUNT(*) as count FROM {}", T::table_name());
         let res = self
-            .query()
+            .query_custom::<CountResult>()
             .set_sql(&sql)
-            .prepare()
-            .fetch_one(self.get_pool())
+            .fetch_one_simple(self.get_pool())
             .await;
         match res {
-            Ok(row) => {
-                let count: i64 = row
-                    .get("count")
-                    .ok_or_else(|| ApiError::InternalServer("Cannot count records".to_string()))?;
-                Ok(count)
-            }
+            Ok(row) => Ok(row.count),
             Err(e) => Err(e),
         }
     }
@@ -170,27 +162,23 @@ where
             T::table_name(),
             T::columns_to_string(),
             (0..nb_columns)
-                .map(|i| { qb.placeholder() })
+                .map(|_i| { qb.placeholder() })
                 .collect::<Vec<String>>()
                 .join(", "),
             T::columns_to_string()
         );
 
-        let mut executor = qb.set_sql(&sql).prepare();
-
-        executor = bind_entry_to_query(executor, &entry);
-
-        executor.fetch_one(self.get_pool()).await
+        qb.set_sql(&sql).add_params(entry.to_bind_values()).fetch_one(self.get_pool()).await
     }
 
     async fn create_many<'tx>(&self, entries: Vec<T>) -> RepositoryResult<Vec<T>>
     where
-        for<'c> &'c mut Transaction<'tx, DB>: sqlx::Executor<'c, Database = DB>,
-        for<'c> &'c mut Transaction<'c, DB>: sqlx::Executor<'c, Database = DB>,
-        Self: Sync,
+            for<'c> &'c mut Transaction<'tx, DB>: sqlx::Executor<'c>,
+            for<'c> &'c mut Transaction<'c, DB>: sqlx::Executor<'c>,
+            Self: Sync,
     {
         if entries.is_empty() {
-            return Ok(vec![]);
+            return Err(ApiError::BadRequest("Empty entries".to_string()));
         }
 
         let now = Utc::now();
@@ -210,63 +198,44 @@ where
             T::columns_to_string()
         );
 
-        execute_transaction(self.get_pool(), self, |repo, tx| async move {
-            let mut created_entries = Vec::new();
+        let mut tx = self.get_pool().begin().await.map_err(ApiError::from)?;
+        let mut created_entries = Vec::new();
 
-            for mut entry in entries.into_iter() {
-                entry.set_created_at(now);
-                entry.set_updated_at(now);
+        for mut entry in entries.into_iter() {
+            entry.set_created_at(now);
+            entry.set_updated_at(now);
 
-                let mut qb = repo.query();
-                let mut executor = qb.set_sql(&sql).prepare();
-                executor = bind_entry_to_query(executor, &entry);
+            let qb = self.query().set_sql(&sql);
 
-                let created_entry = executor.fetch_one_with_transaction(tx).await?;
-                created_entries.push(created_entry);
-            }
-
-            Ok(created_entries)
-        })
-        .await
-    }
-
-    /// Updates a record by its id with the provided entry data.
-    async fn update(&self, id: T::Id, mut entry: T) -> RepositoryResult<T> {
-        let now = Utc::now();
-        entry.set_updated_at(now);
-
-        let mut qb = self.query();
-
-        let sql = format!(
-            "UPDATE {} SET {} WHERE id = {} RETURNING {}",
-            T::table_name(),
-            T::insertable_columns()
-                .iter()
-                .map(|col| format!("{} = {}", col, qb.placeholder()))
-                .collect::<Vec<String>>()
-                .join(", "),
-            qb.placeholder(),
-            T::columns_to_string()
-        );
-
-        let mut executor = qb.set_sql(&sql).prepare();
-
-        executor = bind_entry_to_query(executor, &entry);
-        executor = executor.bind(id);
-
-        executor.fetch_one(self.get_pool()).await
+            let created_entry = bind_entry_to_query(qb, &entry).fetch_one_with_transaction(&mut tx).await?;
+            created_entries.push(created_entry);
+        }
+        tx.commit().await.map_err(ApiError::from)?;
+        Ok(created_entries)
     }
 
     /// Partially updates a record by its id with the provided updates.
-    async fn update_partial(
+    async fn update(
         &self,
-        id: T::Id,
+        id: BindValue,
         columns: Vec<&str>,
         values: Vec<BindValue>,
     ) -> RepositoryResult<T> {
+        // validation des entrées
         if columns.is_empty() || values.is_empty() || columns.len() != values.len() {
             return Err(ApiError::BadRequest("Empty columns or values".to_string()));
         }
+        let insertable_columns = T::insertable_columns();
+        for col in &columns {
+            if !insertable_columns.contains(col) {
+                return Err(ApiError::BadRequest(format!(
+                    "Column '{}' is not updatable",
+                    col
+                )));
+            }
+        }
+        // fin des vérifications
+
 
         let mut qb = self.query();
         let sql = format!(
@@ -280,16 +249,11 @@ where
             qb.placeholder(),
             T::columns_to_string()
         );
-        let mut executor = qb.set_sql(&sql).prepare();
-        for value in values.iter() {
-            executor = bind_value_to_query(executor, value);
-        }
-        executor = executor.bind(id);
-        executor.fetch_one(self.get_pool()).await
+        qb.set_sql(&sql).add_params(values).add_param(id).fetch_one(self.get_pool()).await
     }
 
     /// Deletes a record by its id. Returns true if a record was deleted.
-    async fn delete(&self, id: T::Id) -> RepositoryResult<bool> {
+    async fn delete(&self, id: BindValue) -> RepositoryResult<bool> {
         let mut qb = self.query();
 
         let sql = format!(
@@ -297,17 +261,12 @@ where
             T::table_name(),
             qb.placeholder()
         );
-        qb.set_sql(&sql)
-            .prepare()
-            .bind(id)
-            .execute(self.get_pool())
-            .await?;
-        Ok(true)
+        let rows_affected = qb.set_sql(&sql).add_param(id).execute(self.get_pool()).await?.rows_affected();
+        Ok(rows_affected == 1)
     }
 
     /// Deletes multiple records by their ids. Returns the number of records deleted.
-    async fn delete_many(&self, ids: &[T::Id]) -> RepositoryResult<u64> {
-
+    async fn delete_many(&self, ids: Vec<BindValue>) -> RepositoryResult<u64> {
         if ids.is_empty() {
             return Ok(0);
         }
@@ -325,18 +284,19 @@ where
             placeholders
         );
 
-        let mut executor = qb.set_sql(&sql).prepare();
-        for id in ids.iter() {
-            executor = executor.bind(*id);
+        qb = qb.set_sql(&sql);
+        for id in ids {
+            qb = qb.add_param(id);
         }
 
-        let result = executor.execute(self.get_pool()).await?;
+
+        let result = qb.execute(self.get_pool()).await?;
         Ok(result.rows_affected())
     }
 
     /// Checks if a record exists by its id.
-    async fn exists(&self, id: T::Id) -> RepositoryResult<bool> {
-        let mut qb = self.query();
+    async fn exists(&self, id: BindValue) -> RepositoryResult<bool> {
+        let mut qb = self.query_custom::<ExistResult>();
 
         let sql = format!(
             "SELECT EXISTS(SELECT 1 FROM {} WHERE id = {}) as exists",
@@ -346,15 +306,10 @@ where
 
         let row = qb
             .set_sql(&sql)
-            .prepare()
-            .bind(id)
+            .add_param(id)
             .fetch_one(self.get_pool())
             .await?;
 
-        let exists: bool = row
-            .get("exists")
-            .ok_or_else(|| ApiError::InternalServer("Cannot determine existence".to_string()))?;
-
-        Ok(exists)
+        Ok(row.exist)
     }
 }

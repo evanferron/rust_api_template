@@ -1,10 +1,9 @@
-use crate::core::base::generic_repository::entry_trait::Entry;
 use crate::core::base::query_builder::query_models::QueryResult;
 use crate::core::errors::errors::ApiError;
 use sqlx::{Database, FromRow, Pool, Transaction};
 use std::marker::PhantomData;
 use serde_json::Value;
-use sqlx::query::Query;
+use sqlx::query::{Query, QueryAs};
 use uuid::Uuid;
 use crate::core::base::bind_value::BindValue;
 
@@ -27,7 +26,7 @@ impl DbType {
 }
 
 // Simple QueryBuilder for raw SQL
-pub struct QueryBuilder<DB: Database, T: Entry<DB> + Send + Sync + Unpin + 'static> {
+pub struct QueryBuilder<DB: Database, T: for<'r> FromRow<'r, DB::Row> + Send + Unpin> {
     db_type: DbType,
     sql: String,
     param_count: usize,
@@ -39,7 +38,7 @@ pub struct QueryBuilder<DB: Database, T: Entry<DB> + Send + Sync + Unpin + 'stat
 impl<DB, T> QueryBuilder<DB, T>
 where
     DB: Database,
-    T: Entry<DB> + Send + Sync + Unpin + 'static,
+    T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     for<'q> <DB as Database>::Arguments<'q>: sqlx::IntoArguments<'q, DB>,
     for<'c> &'c mut <DB as Database>::Connection: sqlx::Executor<'c, Database = DB>,
     for<'q> i32: sqlx::Encode<'q, DB>+ sqlx::Type<DB>,
@@ -63,7 +62,7 @@ where
     }
 
     // Set the full SQL - pattern mutable
-    pub fn set_sql(&mut self, sql: impl Into<String>) -> &mut Self {
+    pub fn set_sql(mut self, sql: impl Into<String>) -> Self {
         self.sql = sql.into();
         self
     }
@@ -104,8 +103,6 @@ where
 
     // Helper: fetch_all without parameters
     pub async fn fetch_all_simple(&self, pool: &Pool<DB>) -> QueryResult<Vec<T>>
-    where
-        T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
         sqlx::query_as::<DB, T>(&self.sql)
             .fetch_all(pool)
@@ -115,8 +112,6 @@ where
 
     // Helper: fetch_one without parameters
     pub async fn fetch_one_simple(&self, pool: &Pool<DB>) -> QueryResult<T>
-    where
-        T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
         sqlx::query_as::<DB, T>(&self.sql)
             .fetch_one(pool)
@@ -126,8 +121,6 @@ where
 
     // Helper: fetch_optional without parameters
     pub async fn fetch_optional_simple(&self, pool: &Pool<DB>) -> QueryResult<Option<T>>
-    where
-        T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
         sqlx::query_as::<DB, T>(&self.sql)
             .fetch_optional(pool)
@@ -150,8 +143,23 @@ where
         self
     }
 
-    pub fn build<'q>(&self) -> Query<'_, DB, <DB as Database>::Arguments<'_>>{
+    fn build_execute<'q>(&self) -> Query<'_, DB, DB::Arguments<'_>>{
         let mut q = sqlx::query::<DB>(&self.sql);
+        for v in self.params.clone() {
+            q = match v {
+                BindValue::I32(v) => q.bind(v),
+                BindValue::I64(v) => q.bind(v),
+                BindValue::F64(v) => q.bind(v),
+                BindValue::Bool(v) => q.bind(v),
+                BindValue::String(v) => q.bind(v),
+                BindValue::Uuid(v) => q.bind(v),
+                BindValue::Json(v) => q.bind(v),
+            }
+        }
+        q
+    }
+    fn build_query<'q>(&self) -> QueryAs<'_, DB, T, DB::Arguments<'_>>{
+        let mut q = sqlx::query_as::<DB,T>(&self.sql);
         for v in self.params.clone() {
             q = match v {
                 BindValue::I32(v) => q.bind(v),
@@ -168,7 +176,7 @@ where
 
     // Execute the query
     pub async fn execute(self, pool: &Pool<DB>) -> QueryResult<DB::QueryResult> {
-        self.build()
+        self.build_execute()
             .execute(pool)
             .await
             .map_err(ApiError::from)
@@ -182,7 +190,7 @@ where
     where
         for<'c> &'c mut Transaction<'tx, DB>: sqlx::Executor<'c, Database = DB>,
     {
-        self.build()
+        self.build_execute()
             .execute(tx)
             .await
             .map_err(ApiError::from)
@@ -190,19 +198,11 @@ where
 
     // Fetch all with typed results
     pub async fn fetch_all(self, pool: &Pool<DB>) -> QueryResult<Vec<T>>
-    where
-        T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
-        let rows = self.build()
+        self.build_query()
             .fetch_all(pool)
             .await
-            .map_err(ApiError::from)?;
-        let mut out = Vec::with_capacity(rows.len());
-        for row in rows {
-            let item = T::from_row(&row).map_err(ApiError::from)?;
-            out.push(item);
-        }
-        Ok(out)
+            .map_err(ApiError::from)
     }
 
     pub async fn fetch_all_with_transaction<'tx>(
@@ -211,30 +211,20 @@ where
     ) -> QueryResult<Vec<T>>
     where
         for<'c> &'c mut Transaction<'tx, DB>: sqlx::Executor<'c, Database = DB>,
-        T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
-        let rows = self.build()
+        self.build_query()
             .fetch_all(tx)
             .await
-            .map_err(ApiError::from)?;
-        let mut out = Vec::with_capacity(rows.len());
-        for row in rows {
-            let item = T::from_row(&row).map_err(ApiError::from)?;
-            out.push(item);
-        }
-        Ok(out)
+            .map_err(ApiError::from)
     }
 
     // Fetch one
     pub async fn fetch_one(self, pool: &Pool<DB>) -> QueryResult<T>
-    where
-        T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
-        let row = self.build()
+        self.build_query()
             .fetch_one(pool)
             .await
-            .map_err(ApiError::from)?;
-        T::from_row(&row).map_err(ApiError::from)
+            .map_err(ApiError::from)
     }
 
     pub async fn fetch_one_with_transaction<'tx>(
@@ -243,31 +233,20 @@ where
     ) -> QueryResult<T>
     where
         for<'c> &'c mut Transaction<'tx, DB>: sqlx::Executor<'c, Database = DB>,
-        T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
-        let row = self.build()
+        self.build_query()
             .fetch_one(tx)
             .await
-            .map_err(ApiError::from)?;
-        T::from_row(&row).map_err(ApiError::from)
+            .map_err(ApiError::from)
     }
 
     // Fetch optional
     pub async fn fetch_optional(self, pool: &Pool<DB>) -> QueryResult<Option<T>>
-    where
-        T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
-        let opt_row = self.build()
+        self.build_query()
             .fetch_optional(pool)
             .await
-            .map_err(ApiError::from)?;
-        match opt_row {
-            Some(row) => {
-                let item = T::from_row(&row).map_err(ApiError::from)?;
-                Ok(Some(item))
-            }
-            None => Ok(None),
-        }
+            .map_err(ApiError::from)
     }
 
     pub async fn fetch_optional_with_transaction<'tx>(
@@ -276,18 +255,10 @@ where
     ) -> QueryResult<Option<T>>
     where
         for<'c> &'c mut Transaction<'tx, DB>: sqlx::Executor<'c, Database = DB>,
-        T: for<'r> FromRow<'r, DB::Row> + Send + Unpin,
     {
-        let opt_row = self.build()
+        self.build_query()
             .fetch_optional(tx)
             .await
-            .map_err(ApiError::from)?;
-        match opt_row {
-            Some(row) => {
-                let item = T::from_row(&row).map_err(ApiError::from)?;
-                Ok(Some(item))
-            }
-            None => Ok(None),
-        }
+            .map_err(ApiError::from)
     }
 }

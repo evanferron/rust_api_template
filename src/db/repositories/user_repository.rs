@@ -35,7 +35,7 @@ impl UserRepository {
         id: Uuid,
         new_password_hash: &str,
     ) -> Result<User, ApiError> {
-        self.update_partial(
+        self.update(
             id,
             vec!["password"],
             vec![new_password_hash.into()],
