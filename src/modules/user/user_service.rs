@@ -4,6 +4,7 @@ use crate::{core::errors::errors::ApiError, modules::user::user_models::CreateUs
 use bcrypt::{DEFAULT_COST, hash};
 use std::sync::Arc;
 use uuid::Uuid;
+use crate::core::base::generic_repository::repository_trait::RepositoryTrait;
 
 #[derive(Clone)]
 pub struct UserService {
@@ -20,19 +21,11 @@ impl UserService {
     }
 
     pub async fn get_user_by_id(&self, id: Uuid) -> Result<User, ApiError> {
-        let user = self
+        self
             .repositories
             .user_repository
             .find_user_by_id(id)
-            .await?;
-
-        match user {
-            Some(user) => Ok(user),
-            None => Err(ApiError::NotFound(format!(
-                "Utilisateur avec l'ID {} non trouvé",
-                id
-            ))),
-        }
+            .await
     }
 
     pub async fn create_user(&self, user: CreateUserRequest) -> Result<User, ApiError> {
@@ -101,7 +94,7 @@ impl UserService {
         // Update the user
         self.repositories
             .user_repository
-            .update_user(id, user)
+            .update(id.into(), user.)
             .await
     }
 

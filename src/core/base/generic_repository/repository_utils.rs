@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde_json::Value;
 use sqlx::{ Database, Pool, Transaction};
 use uuid::Uuid;
@@ -22,7 +23,9 @@ where
     for<'q> String: sqlx::Encode<'q, DB>+ sqlx::Type<DB>,
     for<'q> i32: sqlx::Encode<'q, DB>+ sqlx::Type<DB>,
     for<'q> Uuid: sqlx::Encode<'q, DB>+ sqlx::Type<DB>,
-    for<'q> Value: sqlx::Encode<'q, DB>+ sqlx::Type<DB>
+    for<'q> Value: sqlx::Encode<'q, DB>+ sqlx::Type<DB>,
+    for<'q> DateTime<Utc>: sqlx::Encode<'q, DB> + sqlx::Type<DB>,
+    for<'q> Option<String>: sqlx::Encode<'q, DB> + sqlx::Type<DB>, str: sqlx::Type<DB>,
 {
     let values = entry.to_bind_values();
     for bind_value in values {

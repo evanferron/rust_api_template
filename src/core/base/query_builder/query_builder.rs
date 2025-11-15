@@ -2,6 +2,7 @@ use crate::core::base::query_builder::query_models::QueryResult;
 use crate::core::errors::errors::ApiError;
 use sqlx::{Database, FromRow, Pool, Transaction};
 use std::marker::PhantomData;
+use chrono::{DateTime, Utc};
 use serde_json::Value;
 use sqlx::query::{Query, QueryAs};
 use uuid::Uuid;
@@ -46,9 +47,10 @@ where
     for<'q> f64: sqlx::Encode<'q, DB>+ sqlx::Type<DB>,
     for<'q> bool: sqlx::Encode<'q, DB>+ sqlx::Type<DB>,
     for<'q> String: sqlx::Encode<'q, DB>+ sqlx::Type<DB>,
-    for<'q> i32: sqlx::Encode<'q, DB>+ sqlx::Type<DB>,
     for<'q> Uuid: sqlx::Encode<'q, DB>+ sqlx::Type<DB>,
-    for<'q> Value: sqlx::Encode<'q, DB>+ sqlx::Type<DB>
+    for<'q> Value: sqlx::Encode<'q, DB>+ sqlx::Type<DB>,
+    for<'q> DateTime<Utc>: sqlx::Encode<'q, DB> + sqlx::Type<DB>,
+    for<'q> Option<String>: sqlx::Encode<'q, DB> + sqlx::Type<DB>, str: sqlx::Type<DB>
 {
     pub fn new(db_type: DbType) -> Self {
         Self {
@@ -143,32 +145,38 @@ where
         self
     }
 
-    fn build_execute<'q>(&self) -> Query<'_, DB, DB::Arguments<'_>>{
+    fn build_execute(&self) -> Query<'_, DB, DB::Arguments<'_>> {
         let mut q = sqlx::query::<DB>(&self.sql);
-        for v in self.params.clone() {
+
+        for v in &self.params {
             q = match v {
-                BindValue::I32(v) => q.bind(v),
-                BindValue::I64(v) => q.bind(v),
-                BindValue::F64(v) => q.bind(v),
-                BindValue::Bool(v) => q.bind(v),
+                BindValue::I32(v) => q.bind(*v),
+                BindValue::I64(v) => q.bind(*v),
+                BindValue::F64(v) => q.bind(*v),
+                BindValue::Bool(v) => q.bind(*v),
                 BindValue::String(v) => q.bind(v),
-                BindValue::Uuid(v) => q.bind(v),
-                BindValue::Json(v) => q.bind(v),
+                BindValue::Uuid(v) => q.bind(*v),
+                BindValue::Json(v) => q.bind(v.clone()),
+                BindValue::DateTime(v) => q.bind(*v),
+                BindValue::Null => q.bind(Option::<String>::None),
             }
         }
+
         q
     }
     fn build_query<'q>(&self) -> QueryAs<'_, DB, T, DB::Arguments<'_>>{
         let mut q = sqlx::query_as::<DB,T>(&self.sql);
-        for v in self.params.clone() {
+        for v in &self.params {
             q = match v {
-                BindValue::I32(v) => q.bind(v),
-                BindValue::I64(v) => q.bind(v),
-                BindValue::F64(v) => q.bind(v),
-                BindValue::Bool(v) => q.bind(v),
+                BindValue::I32(v) => q.bind(*v),
+                BindValue::I64(v) => q.bind(*v),
+                BindValue::F64(v) => q.bind(*v),
+                BindValue::Bool(v) => q.bind(*v),
                 BindValue::String(v) => q.bind(v),
-                BindValue::Uuid(v) => q.bind(v),
-                BindValue::Json(v) => q.bind(v),
+                BindValue::Uuid(v) => q.bind(*v),
+                BindValue::Json(v) => q.bind(v.clone()),
+                BindValue::DateTime(v) => q.bind(*v),
+                BindValue::Null => q.bind(Option::<String>::None),
             }
         }
         q

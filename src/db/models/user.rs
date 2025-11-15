@@ -60,14 +60,23 @@ where
         ]
     }
 
+    fn insertable_columns() -> Vec<&'static str> {
+        vec![
+            "username",
+            "email",
+            "password_hash",
+            "updated_at",
+        ]
+    }
+
     fn to_bind_values(&self) -> Vec<BindValue> {
         vec![
-            BindValue::String(self.id.to_string()),
-            BindValue::String(self.username.clone()),
-            BindValue::String(self.email.clone()),
-            BindValue::String(self.password_hash.clone()),
-            BindValue::String(self.created_at.to_rfc3339()),
-            BindValue::String(self.updated_at.to_rfc3339()),
+            self.id.into(),
+            self.username.clone().into(),
+            self.email.clone().into(),
+            self.password_hash.clone().into(),
+            self.created_at.into(),
+            self.updated_at.into(),
         ]
     }
 }
