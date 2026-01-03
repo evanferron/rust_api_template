@@ -1,10 +1,9 @@
 use crate::config::models::Repositories;
-use crate::db::models::user::User;
-use crate::{core::errors::errors::ApiError, modules::user::user_models::CreateUserRequest};
-use bcrypt::{DEFAULT_COST, hash};
+use crate::{core::errors::errors::ApiError, modules::user::user_dto::CreateUserRequest};
 use std::sync::Arc;
 use uuid::Uuid;
-use crate::core::base::generic_repository::repository_trait::RepositoryTrait;
+use crate::core::utils::bcrypt::hash_password;
+use crate::db::user::user_model::User;
 
 #[derive(Clone)]
 pub struct UserService {
@@ -45,11 +44,8 @@ impl UserService {
         // Password hashing
         let password_hash = hash_password(&user.password)?;
 
-        // Create the user
-        let user = User::new(user.username, user.email, password_hash);
-
         // Persist the user
-        self.repositories.user_repository.create_user(user).await
+        Ok(self.repositories.user_repository.create_user(&user.username, &user.email, &password_hash).await?)
     }
 
     pub async fn update_user(
@@ -70,18 +66,17 @@ impl UserService {
         if let Some(new_email) = email {
             // Check if the new email is already used by another user
             if new_email != user.email {
-                if let Some(existing) = self
+                let existing_users = self
                     .repositories
                     .user_repository
-                    .find_by_email(&new_email)
-                    .await?
+                    .find_by(vec![("email", new_email.clone().into())])
+                    .await?;
+                if !existing_users.is_empty()
                 {
-                    if existing.id != id {
-                        return Err(ApiError::Conflict(format!(
-                            "Un utilisateur avec l'email {} existe déjà",
-                            new_email
-                        )));
-                    }
+                    return Err(ApiError::Conflict(format!(
+                        "Un utilisateur avec l'email {} existe déjà",
+                        new_email
+                    )));
                 }
                 user.email = new_email;
             }
@@ -103,12 +98,6 @@ impl UserService {
         self.get_user_by_id(id).await?;
 
         // Delete the user
-        self.repositories.user_repository.delete_user(id).await
+        self.repositories.user_repository.delete(id).await
     }
-}
-
-// Utility functions for password handling
-fn hash_password(password: &str) -> Result<String, ApiError> {
-    hash(password, DEFAULT_COST)
-        .map_err(|e| ApiError::InternalServer(format!("Échec du hashage du mot de passe: {}", e)))
 }

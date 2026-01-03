@@ -1,2 +1,2 @@
-pub mod user_models;
+pub mod user_dto;
 pub mod user_service;

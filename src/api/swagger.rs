@@ -1,7 +1,7 @@
 use utoipa::OpenApi;
 use crate::api;
 use crate::api::health::health_controller::{HealthResponse};
-use crate::modules::user::user_models::{
+use crate::modules::user::user_dto::{
     UserResponse, 
     CreateUserRequest, 
     UpdateUserRequest

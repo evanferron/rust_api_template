@@ -1,6 +1,6 @@
 use crate::config::models::Services;
 use crate::core::errors::errors::{ApiError, ErrorResponse};
-use crate::modules::user::user_models::{
+use crate::modules::user::user_dto::{
     CreateUserRequest, UpdateUserRequest, UserIdPath, UserResponse,
 };
 use actix_web::{HttpResponse, Responder, delete, get, post, put, web};
