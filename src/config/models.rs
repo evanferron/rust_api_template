@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
-use crate::modules::{auth::auth_service::AuthService, user::user_service::UserService};
 use crate::db::user::user_repository::UserRepository;
+use crate::modules::{auth::auth_service::AuthService, user::user_service::UserService};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct ServerConfig {
@@ -27,6 +27,7 @@ pub struct JwtConfig {
     pub refresh_expiration: u32,
 }
 
+#[derive(Clone)]
 pub struct Services {
     pub user_service: UserService,
     pub auth_service: AuthService,

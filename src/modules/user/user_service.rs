@@ -1,9 +1,9 @@
 use crate::config::models::Repositories;
+use crate::core::utils::bcrypt::hash_password;
+use crate::db::user::user_model::User;
 use crate::{core::errors::errors::ApiError, modules::user::user_dto::CreateUserRequest};
 use std::sync::Arc;
 use uuid::Uuid;
-use crate::core::utils::bcrypt::hash_password;
-use crate::db::user::user_model::User;
 
 #[derive(Clone)]
 pub struct UserService {
@@ -16,25 +16,33 @@ impl UserService {
     }
 
     pub async fn get_users(&self) -> Result<Vec<User>, ApiError> {
-        self.repositories.user_repository.find_all_users().await
+        self.repositories
+            .user_repository
+            .find_all()
+            .await
+            .map_err(|e| ApiError::InternalServer(e.to_string()))
     }
 
     pub async fn get_user_by_id(&self, id: Uuid) -> Result<User, ApiError> {
-        self
-            .repositories
-            .user_repository
-            .find_user_by_id(id)
-            .await
+        let user = self.repositories.user_repository.find_by_id(id).await?;
+        if let Some(user) = user {
+            Ok(user)
+        } else {
+            Err(ApiError::NotFound(format!(
+                "Utilisateur avec ID {} non trouvé",
+                id
+            )))
+        }
     }
 
     pub async fn create_user(&self, user: CreateUserRequest) -> Result<User, ApiError> {
-        // Check if the email already exists
-        if let Some(_) = self
+        let existing_user = self
             .repositories
             .user_repository
-            .find_by_email(&user.email)
-            .await?
-        {
+            .find_by(vec![("email", user.email.clone().into())])
+            .await?;
+
+        if !existing_user.is_empty() {
             return Err(ApiError::Conflict(format!(
                 "Un utilisateur avec l'email {} existe déjà",
                 user.email
@@ -45,7 +53,11 @@ impl UserService {
         let password_hash = hash_password(&user.password)?;
 
         // Persist the user
-        Ok(self.repositories.user_repository.create_user(&user.username, &user.email, &password_hash).await?)
+        Ok(self
+            .repositories
+            .user_repository
+            .create_user(&user.username, &user.email, &password_hash)
+            .await?)
     }
 
     pub async fn update_user(
@@ -71,8 +83,7 @@ impl UserService {
                     .user_repository
                     .find_by(vec![("email", new_email.clone().into())])
                     .await?;
-                if !existing_users.is_empty()
-                {
+                if !existing_users.is_empty() {
                     return Err(ApiError::Conflict(format!(
                         "Un utilisateur avec l'email {} existe déjà",
                         new_email
@@ -89,7 +100,14 @@ impl UserService {
         // Update the user
         self.repositories
             .user_repository
-            .update(id.into(), user.)
+            .update(
+                id,
+                vec![
+                    ("username", user.username.clone().into()),
+                    ("email", user.email.clone().into()),
+                    ("password_hash", user.password_hash.clone().into()),
+                ],
+            )
             .await
     }
 

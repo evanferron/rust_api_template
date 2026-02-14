@@ -1,8 +1,11 @@
+use std::fmt::Display;
+
 use chrono::{DateTime, Utc};
 use serde_json::Value;
+use sqlx::{Postgres, query_builder::Separated};
 use uuid::Uuid;
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub enum BindValue {
     I32(i32),
     I64(i64),
@@ -12,7 +15,7 @@ pub enum BindValue {
     Uuid(Uuid),
     Json(Value),
     DateTime(DateTime<Utc>),
-    Null
+    Null,
 }
 
 impl From<i32> for BindValue {
@@ -117,5 +120,29 @@ impl From<Option<Value>> for BindValue {
 impl Default for BindValue {
     fn default() -> Self {
         BindValue::Null
+    }
+}
+
+impl BindValue {
+    pub fn push_bind_unseparated<'qb, 'args, Sep>(
+        value: impl Into<BindValue>,
+        mut separated: Separated<'qb, 'args, Postgres, Sep>,
+    ) -> Separated<'qb, 'args, Postgres, Sep>
+    where
+        'args: 'qb,
+        Sep: Display,
+    {
+        match value.into() {
+            BindValue::I32(v) => separated.push_bind_unseparated(v),
+            BindValue::I64(v) => separated.push_bind_unseparated(v),
+            BindValue::F64(v) => separated.push_bind_unseparated(v),
+            BindValue::String(v) => separated.push_bind_unseparated(v),
+            BindValue::Bool(v) => separated.push_bind_unseparated(v),
+            BindValue::Uuid(v) => separated.push_bind_unseparated(v),
+            BindValue::Json(v) => separated.push_bind_unseparated(v),
+            BindValue::DateTime(v) => separated.push_bind_unseparated(v),
+            BindValue::Null => separated.push("NULL"),
+        };
+        separated
     }
 }
