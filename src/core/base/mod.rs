@@ -1,2 +1,2 @@
-pub mod generic_repository;
-pub mod query_builder;
+mod bind_value;
+pub mod repository;

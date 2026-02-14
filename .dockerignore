@@ -1,0 +1,26 @@
+# Ignore target directory and build artefacts
+/target
+**/target
+**/debug
+**/release
+
+# Git and editors
+.git
+.git/
+.gitignore
+.idea
+.vscode
+*.swp
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Environment files
+.env
+
+# Other
+node_modules
+dist
+**/*.log
+

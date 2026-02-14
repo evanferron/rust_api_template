@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use tokio::task;
 
+use crate::db::user::user_model::User;
 use crate::{
     config::models::Repositories,
     core::errors::errors::ApiError,
-    db::models::user::User,
     modules::auth::{auth_helpers::verify_password, auth_models::RegisterRequest},
 };
 
@@ -22,12 +22,12 @@ impl AuthService {
     }
 
     pub async fn create_user(&self, user: RegisterRequest) -> Result<User, ApiError> {
-        if self
+        if !self
             .repositories
             .user_repository
-            .find_by_email(&user.email)
+            .find_by(vec![("email", user.email.clone().into())])
             .await?
-            .is_some()
+            .is_empty()
         {
             return Err(ApiError::BadRequest(
                 "Un utilisateur avec cet email existe déjà".to_string(),
@@ -41,8 +41,11 @@ impl AuthService {
                 ApiError::InternalServer(format!("Erreur de hash du mot de passe: {}", e))
             })?;
 
-        let user = User::new(user.username, user.email, password_hash);
-        let created_user = self.repositories.user_repository.create_user(user).await?;
+        let created_user = self
+            .repositories
+            .user_repository
+            .create_user(&user.username, &user.email, &password_hash)
+            .await?;
 
         Ok(created_user)
     }
@@ -52,19 +55,17 @@ impl AuthService {
         email: String,
         password: String,
     ) -> Result<User, ApiError> {
-        let user = match self
+        let users = self
             .repositories
             .user_repository
-            .find_by_email(&email)
-            .await?
-        {
-            Some(user) => user,
-            None => {
-                return Err(ApiError::Authentication(
-                    "Email ou mot de passe invalide".to_string(),
-                ));
-            }
+            .find_by(vec![("email", email.clone().into())])
+            .await?;
+        if users.is_empty() {
+            return Err(ApiError::Authentication(
+                "Email ou mot de passe invalide".to_string(),
+            ));
         };
+        let user = users.into_iter().next().unwrap();
 
         let password_hash = user.password_hash.clone();
         let password_verification =

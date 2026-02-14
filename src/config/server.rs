@@ -1,11 +1,12 @@
 use super::config::Config;
+use crate::api;
 use crate::api::swagger::ApiDoc;
 use crate::config::models::{Repositories, Services};
 use crate::core::middlewares::logger::logger_middleware;
 use crate::core::middlewares::rate_limiter::{RateLimiterConfig, rate_limiter_middleware};
+use crate::db::user::user_repository::UserRepository;
 use crate::modules::auth::auth_service::AuthService;
 use crate::modules::user::user_service::UserService;
-use crate::{api, db::repositories::user_repository::UserRepository};
 use actix_cors::Cors;
 use actix_web::{App, HttpServer, middleware, web};
 use sqlx::postgres::PgPoolOptions;

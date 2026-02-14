@@ -1,9 +1,7 @@
 use serde::Deserialize;
 
-use crate::{
-    db::repositories::user_repository::UserRepository,
-    modules::{auth::auth_service::AuthService, user::user_service::UserService},
-};
+use crate::db::user::user_repository::UserRepository;
+use crate::modules::{auth::auth_service::AuthService, user::user_service::UserService};
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct ServerConfig {
@@ -35,7 +33,6 @@ pub struct Services {
     pub auth_service: AuthService,
 }
 
-#[derive(Clone)]
 pub struct Repositories {
     pub user_repository: UserRepository,
 }
